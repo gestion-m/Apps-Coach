@@ -47,7 +47,8 @@ async function init(){
  var pr=await sb.from("profiles").select("rol").eq("id",r.data.session.user.id).single();
  ROL=pr.data?pr.data.rol:"cliente";
  if(ROL==="coach"){await loadList();V="lista";draw()}else{await loadMine()}}
-async function loadList(){var r=await sb.from("clientes").select("*").order("nombre");LIST=r.data||[]}
+var LIB=[];
+async function loadList(){var r=await sb.from("clientes").select("*").order("nombre");LIST=r.data||[];var e=await sb.from("ejercicios").select("*").order("nombre");LIB=e.data||[]}
 async function loadCur(id){
  var a=await Promise.all([sb.from("clientes").select("*").eq("id",id).single(),sb.from("plan_dias").select("*").eq("cliente_id",id).order("fecha"),sb.from("pesos").select("*").eq("cliente_id",id).order("fecha")]);
  CUR={c:a[0].data,p:a[1].data||[],w:a[2].data||[]}}
@@ -84,16 +85,52 @@ async function openC(id){await loadCur(id);V="det";draw();window.scrollTo(0,0)}
 function sel(k,v,o){return '<select onchange="setF(\''+k+'\',this.value)">'+o.map(function(x){return '<option value="'+x[0]+'"'+(x[0]==v?" selected":"")+'>'+x[1]+'</option>'}).join("")+'</select>'}
 function num(k,l,c){return '<div><label>'+l+'</label><input type="number" inputmode="decimal" value="'+esc(c[k])+'" onchange="setF(\''+k+'\',this.value)"></div>'}
 function vDet(){
- var c=CUR.c,k=kcal(c),h='<button onclick="loadList().then(function(){go(\'lista\')})">← Clientes</button><h1>'+esc(c.nombre)+'</h1><div class="mut">'+esc(c.email)+'</div>';
+ var c=CUR.c,k=kcal(c),h='<button onclick="loadList().then(function(){go(\'lista\')})">← Clientes</button><h1>'+esc(c.nombre)+'</h1><div class="mut">'+esc(c.email)+'</div>'+(c.telefono?'<a href="https://wa.me/'+String(c.telefono).replace(/\D/g,"")+'" target="_blank"><button class="p w">Escribirle por WhatsApp</button></a>':'<p class="mut">Todavía no cargó su WhatsApp.</p>');
  h+='<div class="card"><div class="row"><b>Pago</b><span class="tag '+(pagoOk(c)?"ok":"bad")+'">'+(pagoOk(c)?"Al día":"Bloqueado")+'</span></div><label>Pagado hasta (opcional)</label><input type="date" value="'+esc(c.vence||"")+'" onchange="setF(\'vence\',this.value||null)"><button class="w '+(c.pagado?"":"p")+'" onclick="setF(\'pagado\','+!c.pagado+')">'+(c.pagado?"Marcar como NO pagó":"Marcar como pagó")+'</button><p class="mut">Si no pagó o venció, el cliente no ve su plan.</p></div>';
  h+='<div class="card"><b>Ficha</b><div class="g2"><div><label>Sexo</label>'+sel("sexo",c.sexo,[["mujer","Mujer"],["hombre","Hombre"]])+'</div>'+num("edad","Edad",c)+num("peso","Peso (kg)",c)+num("altura","Altura (cm)",c)+num("dias","Días por semana",c)+'<div><label>Objetivo calórico</label>'+sel("obj",c.obj,[["deficit","Déficit"],["mantener","Mantener"],["superavit","Superávit"]])+'</div></div><label>Lesiones o patologías</label><textarea rows="2" onchange="setF(\'lesiones\',this.value)">'+esc(c.lesiones)+'</textarea>'+(c.lesiones?'<p class="bad">⚠ Revisá las lesiones antes de aprobar el plan.</p>':"")+(k?'<p>Estimación aproximada: <b>'+k.k+' kcal</b> y <b>'+k.p+' g</b> de proteína por día.</p>':'<p class="mut">Completá sexo, edad, peso y altura para ver la estimación.</p>')+'</div><h2>Plan</h2>';
- CUR.p.forEach(function(d){h+='<div class="card"><div class="row"><b>'+fmt(d.fecha)+' · '+esc(d.titulo)+'</b><span class="tag '+(d.aprobado?"ok":"mut")+'">'+(d.aprobado?"Aprobado":"Borrador")+'</span></div><div class="mut">'+d.items.map(esc).join(" · ")+'</div><div class="g2"><button onclick="aprobar(\''+d.id+'\','+!d.aprobado+')">'+(d.aprobado?"Pasar a borrador":"Aprobar")+'</button><button onclick="delD(\''+d.id+'\')">Quitar</button></div></div>'});
- h+='<div class="card"><b>Agregar día</b><label>Fecha</label><input type="date" id="df" value="'+hoy()+'"><label>Título</label><input id="dt"><label>Ejercicios (uno por línea, con series y reps)</label><textarea id="di" rows="4"></textarea><button class="p w" onclick="addD()">Guardar como borrador</button></div><h2>Progreso de peso</h2><div class="card">'+pesoH()+'</div>'+chatH()+'<button class="w" onclick="delC()">Borrar cliente</button>';
+ CUR.p.forEach(function(d){h+='<div class="card"><div class="row"><b>'+fmt(d.fecha)+' · '+esc(d.titulo)+'</b><span class="tag '+(d.aprobado?"ok":"mut")+'">'+(d.aprobado?"Aprobado":"Borrador")+'</span></div><div class="mut">'+d.items.map(function(x){return esc(itemTxt(x))}).join(" · ")+'</div><div class="g2"><button onclick="aprobar(\''+d.id+'\','+!d.aprobado+')">'+(d.aprobado?"Pasar a borrador":"Aprobar")+'</button><button onclick="delD(\''+d.id+'\')">Quitar</button></div></div>'});
+ h+=''+armarH()+'<h2>Progreso de peso</h2><div class="card">'+pesoH()+'</div>'+chatH()+'<button class="w" onclick="delC()">Borrar cliente</button>';
  return h}
 async function setF(k,v){var o={};o[k]=v;var r=await sb.from("clientes").update(o).eq("id",CUR.c.id);if(r.error){alert(r.error.message);return}CUR.c[k]=v;draw()}
+var BLOQ=["Entrada en calor","Activación","Principal","Core","Vuelta a la calma"],PLANOS=["sagital","frontal","transversal"],DRAFT=[],DF=hoy(),DT="",DB="Principal";
+function itemTxt(x){return typeof x==="string"?x:x.nombre+(x.detalle?" — "+x.detalle:"")}
+function opts(a,v){return a.map(function(o){return '<option'+(o===v?" selected":"")+'>'+o+'</option>'}).join("")}
+function armarH(){
+ var ops=LIB.filter(function(e){return e.bloque===DB}),h='<div class="card"><b>Armar día de entrenamiento</b><label>Fecha</label><input type="date" value="'+DF+'" onchange="DF=this.value"><label>Título</label><input value="'+esc(DT)+'" onchange="DT=this.value" placeholder="Ej: Tren inferior"><label>Bloque</label><select onchange="DB=this.value;draw()">'+opts(BLOQ,DB)+'</select><label>Ejercicio de tu biblioteca</label><select id="xe"><option value="">— elegir —</option>'+ops.map(function(e){return '<option value="'+e.id+'">'+esc(e.nombre)+'</option>'}).join("")+'</select>'+(ops.length?'':'<p class="mut">No tenés ejercicios en este bloque. Cargalos abajo en la biblioteca.</p>')+'<label>Series y repeticiones</label><input id="xd" placeholder="Ej: 3x12"><button class="w" onclick="addX()">+ Agregar al día</button>';
+ DRAFT.forEach(function(x,i){h+='<div class="row mut" style="margin-top:6px"><span>'+esc(x.bloque+": "+itemTxt(x))+'</span><button onclick="DRAFT.splice('+i+',1);draw()">✕</button></div>'});
+ return h+'<button class="p w" onclick="addD()">Guardar día como borrador</button></div>'+libH()}
+function addX(){var e=LIB.find(function(z){return z.id===$("xe").value});if(!e)return;DRAFT.push({bloque:DB,nombre:e.nombre,detalle:$("xd").value.trim(),video:e.video||"",plano:e.plano||""});draw()}
 async function addD(){
- var t=$("dt").value.trim(),it=$("di").value.split("\n").map(function(x){return x.trim()}).filter(Boolean);if(!t||!it.length)return;
- await sb.from("plan_dias").insert({cliente_id:CUR.c.id,fecha:$("df").value||hoy(),titulo:t,items:it});await loadCur(CUR.c.id);draw()}
+ if(!DT.trim()||!DRAFT.length){alert("Poné un título y al menos un ejercicio.");return}
+ var r=await sb.from("plan_dias").insert({cliente_id:CUR.c.id,fecha:DF||hoy(),titulo:DT.trim(),items:DRAFT});
+ if(r.error){alert(r.error.message);return}
+ DRAFT=[];DT="";await loadCur(CUR.c.id);draw()}
+function libH(){
+ var h='<h2>Mi biblioteca de ejercicios</h2><div class="card"><label>Nombre</label><input id="ln"><div class="g2"><div><label>Bloque</label><select id="lb">'+opts(BLOQ,"Principal")+'</select></div><div><label>Plano del video</label><select id="lp">'+opts(PLANOS,"sagital")+'</select></div></div><label>Link del video (YouTube, Drive, etc.)</label><input id="lv" type="url" placeholder="https://"><button class="p w" onclick="addLib()">Guardar ejercicio</button></div>';
+ LIB.forEach(function(e){h+='<div class="row mut" style="margin:6px 0"><span>'+esc(e.bloque+": "+e.nombre)+(e.video?" ▶ "+esc(e.plano||""):"")+'</span><button onclick="delLib(\''+e.id+'\')">✕</button></div>'});
+ return h}
+async function addLib(){
+ var n=$("ln").value.trim();if(!n)return;
+ var r=await sb.from("ejercicios").insert({nombre:n,bloque:$("lb").value,plano:$("lp").value,video:$("lv").value.trim()||null});
+ if(r.error){alert(r.error.message);return}
+ await loadList();draw()}
+async function delLib(i){if(!confirm("¿Borrar este ejercicio de la biblioteca?"))return;await sb.from("ejercicios").delete().eq("id",i);await loadList();draw()}
+function itemsH(d){
+ var h="";
+ BLOQ.forEach(function(b){
+  var g=d.items.map(function(x,i){return[x,i]}).filter(function(p){return(typeof p[0]==="object"?p[0].bloque:"Principal")===b});
+  if(!g.length)return;
+  h+='<div class="mut" style="margin-top:10px"><b>'+b+'</b></div>';
+  g.forEach(function(p){var x=p[0],i=p[1];
+   h+='<label class="item" style="color:var(--tx);font-size:17px"><input type="checkbox" '+(d.hecho[i]?"checked":"")+' onchange="tick(\''+d.id+'\','+i+',this.checked)"><span>'+esc(itemTxt(x))+'</span></label>'+(x.video?'<div style="margin:0 0 6px 36px"><a href="'+esc(x.video)+'" target="_blank" rel="noopener" style="color:var(--pri)">▶ Ver video (plano '+esc(x.plano||"")+')</a></div>':'')})});
+ return h}
+function fichaCli(c){
+ return '<div class="card"><b>Mis datos</b><p class="mut">Completalos para que tu coach pueda armar tu plan.</p><div class="g2"><div><label>Sexo</label><select id="fs">'+opts(["mujer","hombre"],c.sexo)+'</select></div><div><label>Edad</label><input id="fe" type="number" inputmode="numeric" value="'+esc(c.edad)+'"></div><div><label>Peso (kg)</label><input id="fp" type="number" inputmode="decimal" value="'+esc(c.peso)+'"></div><div><label>Altura (cm)</label><input id="fa" type="number" inputmode="numeric" value="'+esc(c.altura)+'"></div><div><label>Días por semana</label><input id="fd" type="number" inputmode="numeric" value="'+esc(c.dias)+'"></div><div><label>Objetivo calórico</label><select id="fo">'+opts(["deficit","mantener","superavit"],c.obj)+'</select></div></div><label>Lesiones o patologías</label><textarea id="fl" rows="2">'+esc(c.lesiones)+'</textarea><label>Tu WhatsApp con código de país (ej: 5491155551234)</label><input id="ft" type="tel" inputmode="numeric" value="'+esc(c.telefono)+'"><button class="p w" onclick="guardarFicha()">Guardar mis datos</button></div>'}
+async function guardarFicha(){
+ var n=function(i){var v=parseFloat($(i).value);return isNaN(v)?null:v};
+ var r=await sb.rpc("guardar_mi_ficha",{p_sexo:$("fs").value,p_edad:n("fe"),p_peso:n("fp"),p_altura:n("fa"),p_dias:n("fd"),p_obj:$("fo").value,p_lesiones:$("fl").value,p_tel:$("ft").value.trim()});
+ if(r.error){alert(r.error.message);return}
+ await loadCur(CUR.c.id);draw();alert("Datos guardados.")}
 async function aprobar(i,v){await sb.from("plan_dias").update({aprobado:v}).eq("id",i);await loadCur(CUR.c.id);draw()}
 async function delD(i){await sb.from("plan_dias").delete().eq("id",i);await loadCur(CUR.c.id);draw()}
 async function delC(){if(confirm("¿Borrar este cliente y todos sus datos?")){await sb.from("clientes").delete().eq("id",CUR.c.id);await loadList();go("lista")}}
@@ -103,10 +140,10 @@ function pesoH(){
  return h+'<div class="row"><input type="number" inputmode="decimal" id="pk" placeholder="Peso en kg"><button class="p" onclick="addP()">Anotar</button></div>'}
 async function addP(){var v=parseFloat($("pk").value);if(!v)return;var r=await sb.from("pesos").insert({cliente_id:CUR.c.id,kg:v});if(r.error){alert(r.error.message);return}await loadCur(CUR.c.id);draw()}
 function vCli(){
- var c=CUR.c,h='<div class="row"><h1>Hola, '+esc(c.nombre.split(" ")[0])+'</h1><button onclick="salir()">Salir</button></div><button class="w" onclick="go(\'tab\')">⏱ Temporizador Tabata</button>';
+ var c=CUR.c,h='<div class="row"><h1>Hola, '+esc(c.nombre.split(" ")[0])+'</h1><button onclick="salir()">Salir</button></div><button class="w" onclick="go(\'tab\')">⏱ Temporizador Tabata</button>'+fichaCli(c);
  if(!pagoOk(c))return h+'<div class="card"><b class="bad">Tu plan está en pausa</b><p>Hay un pago pendiente. Hablá con tu coach para seguir entrenando.</p></div>'+chatH();
  if(!CUR.p.length)h+='<div class="card">Tu coach todavía no te cargó una rutina.</div>';
- CUR.p.forEach(function(d){h+='<div class="card"><b>'+fmt(d.fecha)+(d.fecha===hoy()?" (hoy)":"")+' · '+esc(d.titulo)+'</b>';d.items.forEach(function(x,i){h+='<label class="item" style="color:var(--tx);font-size:17px"><input type="checkbox" '+(d.hecho[i]?"checked":"")+' onchange="tick(\''+d.id+'\','+i+',this.checked)"><span>'+esc(x)+'</span></label>'});h+='</div>'});
+ CUR.p.forEach(function(d){h+='<div class="card"><b>'+fmt(d.fecha)+(d.fecha===hoy()?" (hoy)":"")+' · '+esc(d.titulo)+'</b>';h+=itemsH(d);h+='</div>'});
  return h+'<h2>Mi peso</h2><div class="card">'+pesoH()+'</div>'+chatH()+'<p class="mut">Los valores de calorías son estimaciones. Esta app no reemplaza a un profesional de la salud.</p>'}
 async function tick(i,n,v){var d=CUR.p.find(function(x){return x.id===i});d.hecho[n]=v;await sb.from("plan_dias").update({hecho:d.hecho}).eq("id",i)}
 function chatH(){return '<h2>Chat</h2><div class="card"><div id="msgs" style="max-height:320px;overflow:auto"></div><div class="row"><input id="mt" placeholder="Escribí un mensaje"><button class="p" onclick="send()">Enviar</button></div></div>'}
