@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mi Coach</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--bg:#f6f5fb;--card:#fff;--tx:#1d1b2e;--mut:#6b6880;--pri:#5b3fd6;--ok:#1f9d55;--bad:#d64045;--bd:#e3e0f0}
+@media (prefers-color-scheme:dark){:root{--bg:#14131c;--card:#1e1c2b;--tx:#efedf9;--mut:#9b97b3;--pri:#8f7bff;--ok:#3ecf7e;--bad:#ff6b70;--bd:#34314a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:17px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:560px;margin:0 auto;padding:calc(14px + env(safe-area-inset-top,0px)) 14px calc(90px + env(safe-area-inset-bottom,0px))}
+h1{font-size:22px;margin:6px 0 12px}h2{font-size:18px;margin:18px 0 8px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin:10px 0}
+button{font:inherit;min-height:48px;border-radius:12px;border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:0 16px}
+button.p{background:var(--pri);color:#fff;border-color:var(--pri);font-weight:600}
+button.w{width:100%;margin-top:8px}
+input,select,textarea{font:inherit;width:100%;min-height:46px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);padding:8px 10px;margin:4px 0 8px}
+label{font-size:14px;color:var(--mut)}
+.row{display:flex;gap:8px;align-items:center;justify-content:space-between}
+.tag{font-size:13px;padding:3px 10px;border-radius:99px;border:1px solid currentColor;white-space:nowrap}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.mut{color:var(--mut);font-size:14px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.item{display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--bd)}
+.item input{width:26px;min-height:26px;margin:0}
+.b{max-width:80%;padding:8px 12px;border-radius:14px;margin:6px 0;background:var(--bg)}
+.b.yo{margin-left:auto;background:var(--pri);color:#fff}
+</style>
+</head>
+<body>
+<main id="app">Cargando…</main>
+<script>
+var URL_="https://uryxqriklzfdhmynzhht.supabase.co",KEY="sb_publishable_jiDh3Fu3owrftp778jlmvw_TzcuO4rh";
+var sb=supabase.createClient(URL_,KEY),ROL=null,V="login",CUR=null,LIST=[],CH=null,MSG="";
+function esc(t){return String(t==null?"":t).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function hoy(){return new Date().toISOString().slice(0,10)}
+function fmt(f){if(!f)return"";var p=f.split("-");return p[2]+"/"+p[1]+"/"+p[0]}
+function pagoOk(c){return c&&c.pagado&&(!c.vence||c.vence>=hoy())}
+function $(i){return document.getElementById(i)}
+function kcal(c){var p=+c.peso,a=+c.altura,e=+c.edad;if(!p||!a||!e)return null;var b=10*p+6.25*a-5*e+(c.sexo==="hombre"?5:-161),d=+c.dias||3,f=d<=2?1.4:d==3?1.5:d==4?1.55:1.65,t=b*f;if(c.obj==="deficit")t*=.8;if(c.obj==="superavit")t*=1.1;return{k:Math.round(t/10)*10,p:Math.round(1.8*p)}}
+function leave(){if(CH){sb.removeChannel(CH);CH=null}tStop()}
+function go(v){leave();V=v;draw()}
+async function init(){
+ var r=await sb.auth.getSession();
+ if(!r.data.session){V="login";return draw()}
+ var pr=await sb.from("profiles").select("rol").eq("id",r.data.session.user.id).single();
+ ROL=pr.data?pr.data.rol:"cliente";
+ if(ROL==="coach"){await loadList();V="lista";draw()}else{await loadMine()}}
+async function loadList(){var r=await sb.from("clientes").select("*").order("nombre");LIST=r.data||[]}
+async function loadCur(id){
+ var a=await Promise.all([sb.from("clientes").select("*").eq("id",id).single(),sb.from("plan_dias").select("*").eq("cliente_id",id).order("fecha"),sb.from("pesos").select("*").eq("cliente_id",id).order("fecha")]);
+ CUR={c:a[0].data,p:a[1].data||[],w:a[2].data||[]}}
+async function loadMine(){
+ var r=await sb.from("clientes").select("id").limit(1);
+ if(!r.data||!r.data.length){CUR=null;V="sinacceso";return draw()}
+ await loadCur(r.data[0].id);V="cli";draw()}
+async function login(nuevo){
+ var e=$("em").value.trim(),p=$("pw").value;MSG="";
+ var r=nuevo?await sb.auth.signUp({email:e,password:p}):await sb.auth.signInWithPassword({email:e,password:p});
+ if(r.error){MSG=r.error.message;return draw()}
+ if(nuevo&&!r.data.session){MSG="Cuenta creada. Revisá tu mail para confirmarla y después entrá.";return draw()}
+ init()}
+async function salir(){leave();await sb.auth.signOut();ROL=null;V="login";draw()}
+function draw(){
+ var h="";
+ if(V==="login")h=vLogin();else if(V==="sinacceso")h=vSin();else if(V==="lista")h=vLista();else if(V==="nuevo")h=vNuevo();else if(V==="det")h=vDet();else if(V==="cli")h=vCli();else if(V==="tab")h=vTab();
+ $("app").innerHTML=h;
+ if($("msgs"))chatStart()}
+function vLogin(){return '<h1>Mi Coach</h1><div class="card"><label>Mail</label><input id="em" type="email" autocomplete="email"><label>Contraseña (mínimo 6 caracteres)</label><input id="pw" type="password" autocomplete="current-password">'+(MSG?'<p class="bad">'+esc(MSG)+'</p>':'')+'<button class="p w" onclick="login(false)">Entrar</button><button class="w" onclick="login(true)">Crear cuenta</button><p class="mut">Si sos cliente, creá tu cuenta con el mismo mail con el que te cargó tu coach.</p></div>'}
+function vSin(){return '<h1>Mi Coach</h1><div class="card"><p>Tu coach todavía no te dio acceso con este mail. Pedile que cargue tu mail en la app y volvé a entrar.</p><button class="w" onclick="salir()">Salir</button></div>'}
+function vLista(){
+ var h='<div class="row"><h1>Mis clientes</h1><button onclick="salir()">Salir</button></div><button class="p w" onclick="go(\'nuevo\')">+ Nuevo cliente</button><button class="w" onclick="go(\'tab\')">⏱ Temporizador Tabata</button>';
+ if(!LIST.length)h+='<p class="mut">Todavía no cargaste clientes.</p>';
+ LIST.forEach(function(c){h+='<div class="card" onclick="openC(\''+c.id+'\')"><div class="row"><b>'+esc(c.nombre)+'</b><span class="tag '+(pagoOk(c)?"ok":"bad")+'">'+(pagoOk(c)?"Pagó":"Sin pago")+'</span></div><div class="mut">'+esc(c.objetivo||"Sin objetivo")+'</div></div>'});
+ return h}
+function vNuevo(){return '<h1>Nuevo cliente</h1><div class="card"><label>Nombre</label><input id="n"><label>Mail (el que va a usar para entrar)</label><input id="e" type="email"><label>Objetivo</label><input id="o"><button class="p w" onclick="addC()">Guardar</button><button class="w" onclick="go(\'lista\')">Cancelar</button></div>'}
+async function addC(){
+ var n=$("n").value.trim(),e=$("e").value.trim().toLowerCase();if(!n||!e)return;
+ var r=await sb.from("clientes").insert({nombre:n,email:e,objetivo:$("o").value.trim()});
+ if(r.error){alert(r.error.message);return}
+ await loadList();go("lista")}
+async function openC(id){await loadCur(id);V="det";draw();window.scrollTo(0,0)}
+function sel(k,v,o){return '<select onchange="setF(\''+k+'\',this.value)">'+o.map(function(x){return '<option value="'+x[0]+'"'+(x[0]==v?" selected":"")+'>'+x[1]+'</option>'}).join("")+'</select>'}
+function num(k,l,c){return '<div><label>'+l+'</label><input type="number" inputmode="decimal" value="'+esc(c[k])+'" onchange="setF(\''+k+'\',this.value)"></div>'}
+function vDet(){
+ var c=CUR.c,k=kcal(c),h='<button onclick="loadList().then(function(){go(\'lista\')})">← Clientes</button><h1>'+esc(c.nombre)+'</h1><div class="mut">'+esc(c.email)+'</div>';
+ h+='<div class="card"><div class="row"><b>Pago</b><span class="tag '+(pagoOk(c)?"ok":"bad")+'">'+(pagoOk(c)?"Al día":"Bloqueado")+'</span></div><label>Pagado hasta (opcional)</label><input type="date" value="'+esc(c.vence||"")+'" onchange="setF(\'vence\',this.value||null)"><button class="w '+(c.pagado?"":"p")+'" onclick="setF(\'pagado\','+!c.pagado+')">'+(c.pagado?"Marcar como NO pagó":"Marcar como pagó")+'</button><p class="mut">Si no pagó o venció, el cliente no ve su plan.</p></div>';
+ h+='<div class="card"><b>Ficha</b><div class="g2"><div><label>Sexo</label>'+sel("sexo",c.sexo,[["mujer","Mujer"],["hombre","Hombre"]])+'</div>'+num("edad","Edad",c)+num("peso","Peso (kg)",c)+num("altura","Altura (cm)",c)+num("dias","Días por semana",c)+'<div><label>Objetivo calórico</label>'+sel("obj",c.obj,[["deficit","Déficit"],["mantener","Mantener"],["superavit","Superávit"]])+'</div></div><label>Lesiones o patologías</label><textarea rows="2" onchange="setF(\'lesiones\',this.value)">'+esc(c.lesiones)+'</textarea>'+(c.lesiones?'<p class="bad">⚠ Revisá las lesiones antes de aprobar el plan.</p>':"")+(k?'<p>Estimación aproximada: <b>'+k.k+' kcal</b> y <b>'+k.p+' g</b> de proteína por día.</p>':'<p class="mut">Completá sexo, edad, peso y altura para ver la estimación.</p>')+'</div><h2>Plan</h2>';
+ CUR.p.forEach(function(d){h+='<div class="card"><div class="row"><b>'+fmt(d.fecha)+' · '+esc(d.titulo)+'</b><span class="tag '+(d.aprobado?"ok":"mut")+'">'+(d.aprobado?"Aprobado":"Borrador")+'</span></div><div class="mut">'+d.items.map(esc).join(" · ")+'</div><div class="g2"><button onclick="aprobar(\''+d.id+'\','+!d.aprobado+')">'+(d.aprobado?"Pasar a borrador":"Aprobar")+'</button><button onclick="delD(\''+d.id+'\')">Quitar</button></div></div>'});
+ h+='<div class="card"><b>Agregar día</b><label>Fecha</label><input type="date" id="df" value="'+hoy()+'"><label>Título</label><input id="dt"><label>Ejercicios (uno por línea, con series y reps)</label><textarea id="di" rows="4"></textarea><button class="p w" onclick="addD()">Guardar como borrador</button></div><h2>Progreso de peso</h2><div class="card">'+pesoH()+'</div>'+chatH()+'<button class="w" onclick="delC()">Borrar cliente</button>';
+ return h}
+async function setF(k,v){var o={};o[k]=v;var r=await sb.from("clientes").update(o).eq("id",CUR.c.id);if(r.error){alert(r.error.message);return}CUR.c[k]=v;draw()}
+async function addD(){
+ var t=$("dt").value.trim(),it=$("di").value.split("\n").map(function(x){return x.trim()}).filter(Boolean);if(!t||!it.length)return;
+ await sb.from("plan_dias").insert({cliente_id:CUR.c.id,fecha:$("df").value||hoy(),titulo:t,items:it});await loadCur(CUR.c.id);draw()}
+async function aprobar(i,v){await sb.from("plan_dias").update({aprobado:v}).eq("id",i);await loadCur(CUR.c.id);draw()}
+async function delD(i){await sb.from("plan_dias").delete().eq("id",i);await loadCur(CUR.c.id);draw()}
+async function delC(){if(confirm("¿Borrar este cliente y todos sus datos?")){await sb.from("clientes").delete().eq("id",CUR.c.id);await loadList();go("lista")}}
+function pesoH(){
+ var w=CUR.w,h="";
+ if(w.length){var d=(w[w.length-1].kg-w[0].kg).toFixed(1);h+='<p><b>'+w[w.length-1].kg+' kg</b> · cambio desde el inicio: '+(d>0?"+":"")+d+' kg</p>';w.slice(-5).reverse().forEach(function(p){h+='<div class="mut">'+fmt(p.fecha)+': '+p.kg+' kg</div>'})}
+ return h+'<div class="row"><input type="number" inputmode="decimal" id="pk" placeholder="Peso en kg"><button class="p" onclick="addP()">Anotar</button></div>'}
+async function addP(){var v=parseFloat($("pk").value);if(!v)return;var r=await sb.from("pesos").insert({cliente_id:CUR.c.id,kg:v});if(r.error){alert(r.error.message);return}await loadCur(CUR.c.id);draw()}
+function vCli(){
+ var c=CUR.c,h='<div class="row"><h1>Hola, '+esc(c.nombre.split(" ")[0])+'</h1><button onclick="salir()">Salir</button></div><button class="w" onclick="go(\'tab\')">⏱ Temporizador Tabata</button>';
+ if(!pagoOk(c))return h+'<div class="card"><b class="bad">Tu plan está en pausa</b><p>Hay un pago pendiente. Hablá con tu coach para seguir entrenando.</p></div>'+chatH();
+ if(!CUR.p.length)h+='<div class="card">Tu coach todavía no te cargó una rutina.</div>';
+ CUR.p.forEach(function(d){h+='<div class="card"><b>'+fmt(d.fecha)+(d.fecha===hoy()?" (hoy)":"")+' · '+esc(d.titulo)+'</b>';d.items.forEach(function(x,i){h+='<label class="item" style="color:var(--tx);font-size:17px"><input type="checkbox" '+(d.hecho[i]?"checked":"")+' onchange="tick(\''+d.id+'\','+i+',this.checked)"><span>'+esc(x)+'</span></label>'});h+='</div>'});
+ return h+'<h2>Mi peso</h2><div class="card">'+pesoH()+'</div>'+chatH()+'<p class="mut">Los valores de calorías son estimaciones. Esta app no reemplaza a un profesional de la salud.</p>'}
+async function tick(i,n,v){var d=CUR.p.find(function(x){return x.id===i});d.hecho[n]=v;await sb.from("plan_dias").update({hecho:d.hecho}).eq("id",i)}
+function chatH(){return '<h2>Chat</h2><div class="card"><div id="msgs" style="max-height:320px;overflow:auto"></div><div class="row"><input id="mt" placeholder="Escribí un mensaje"><button class="p" onclick="send()">Enviar</button></div></div>'}
+async function loadMsgs(){
+ var r=await sb.from("mensajes").select("*").eq("cliente_id",CUR.c.id).order("creado"),me=ROL==="coach"?"coach":"cliente",b=$("msgs");if(!b)return;
+ b.innerHTML=(r.data||[]).map(function(m){return '<div class="b'+(m.de===me?" yo":"")+'">'+esc(m.texto)+'</div>'}).join("")||'<p class="mut">Todavía no hay mensajes.</p>';b.scrollTop=b.scrollHeight}
+function chatStart(){
+ loadMsgs();if(CH)sb.removeChannel(CH);
+ CH=sb.channel("m"+CUR.c.id).on("postgres_changes",{event:"INSERT",schema:"public",table:"mensajes",filter:"cliente_id=eq."+CUR.c.id},loadMsgs).subscribe()}
+async function send(){var t=$("mt").value.trim();if(!t)return;$("mt").value="";var r=await sb.from("mensajes").insert({cliente_id:CUR.c.id,de:ROL==="coach"?"coach":"cliente",texto:t});if(r.error)alert(r.error.message)}
+var T={q:[],i:0,l:0,h:null,wl:null,ac:null};
+function vTab(){
+ var f=[["tp","Preparación (s)",10],["tw","Trabajo (s)",20],["tr","Descanso (s)",10],["tc","Ciclos",8],["ts","Series",1],["tg","Descanso entre series (s)",60]],h='<button onclick="go(\''+(ROL==="coach"?"lista":"cli")+'\')">← Volver</button><h1>Tabata</h1><div class="card"><div class="g2">';
+ f.forEach(function(x){h+='<div><label>'+x[1]+'</label><input type="number" inputmode="numeric" id="'+x[0]+'" value="'+x[2]+'"></div>'});
+ return h+'</div><div id="tdisp" style="text-align:center;font-size:84px;font-weight:700">0</div><div id="tfase" class="mut" style="text-align:center">Listo para empezar</div><button class="p w" onclick="tStart()">Empezar</button><button class="w" onclick="tStop()">Parar</button></div>'}
+function beep(f){try{T.ac=T.ac||new(window.AudioContext||window.webkitAudioContext)();var o=T.ac.createOscillator(),g=T.ac.createGain();o.frequency.value=f;g.gain.value=.3;o.connect(g);g.connect(T.ac.destination);o.start();o.stop(T.ac.currentTime+.25)}catch(e){}try{navigator.vibrate&&navigator.vibrate(200)}catch(e){}}
+function paint(b){$("tdisp").textContent=T.l;$("tfase").textContent=T.q[T.i][0]+" ("+(T.i+1)+"/"+T.q.length+")";if(b)beep(T.q[T.i][0]==="¡Trabajo!"?880:440)}
+function tStop(){clearInterval(T.h);T.h=null;try{if(T.wl){T.wl.release();T.wl=null}}catch(e){}}
+function tStart(){
+ tStop();var v=function(i){return Math.max(0,+$(i).value||0)},p=v("tp"),w=v("tw"),r=v("tr"),c=v("tc"),s=v("ts"),g=v("tg"),q=[];
+ if(p)q.push(["Preparate",p]);
+ for(var a=0;a<s;a++){for(var b=0;b<c;b++){q.push(["¡Trabajo!",w]);if(r&&!(b==c-1&&a==s-1))q.push(["Descanso",r])}if(g&&a<s-1)q.push(["Descanso entre series",g])}
+ if(!q.length)return;T.q=q;T.i=0;T.l=q[0][1];paint(true);
+ try{if(navigator.wakeLock)navigator.wakeLock.request("screen").then(function(x){T.wl=x}).catch(function(){})}catch(e){}
+ T.h=setInterval(function(){T.l--;if(T.l<=0){T.i++;if(T.i>=T.q.length){tStop();$("tdisp").textContent="0";$("tfase").textContent="¡Terminaste!";beep(990);return}T.l=T.q[T.i][1];paint(true)}else paint(false)},1000)}
+init();
+</script>
+</body>
+</html>
