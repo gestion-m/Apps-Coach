@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Mi Coach</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f172a">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#0f172a;--card:#1a2540;--tx:#fff;--mut:#9aa6bf;--pri:#ff6b3d;--ok:#2ecc8f;--bad:#ff6b70;--bd:#26335a;color-scheme:dark}
@@ -25,7 +27,7 @@ label{font-size:14px;color:var(--mut)}
 .item input{width:26px;min-height:26px;margin:0}
 .b{max-width:80%;padding:8px 12px;border-radius:14px;margin:6px 0;background:var(--bg)}
 .b.yo{margin-left:auto;background:var(--pri);color:#fff}
-@media print{button,#msgs,a,summary{display:none!important}}
+@media print{button,#msgs,a,summary,nav,.noimp{display:none!important}body{background:#fff;color:#000}.card{background:#fff;border-color:#ccc;color:#000;break-inside:avoid}.mut{color:#444}}
 summary::-webkit-details-marker{display:none}
 h1,h2,.tt{font-family:'Barlow Condensed','Arial Narrow',system-ui,sans-serif;font-weight:700}
 h1{font-size:34px}h2{font-size:24px}
@@ -49,7 +51,7 @@ nav button.on{color:var(--pri);box-shadow:inset 0 3px var(--pri)}
 <script>
 var URL_="https://uryxqriklzfdhmynzhht.supabase.co",KEY="sb_publishable_jiDh3Fu3owrftp778jlmvw_TzcuO4rh";
 var sb=supabase.createClient(URL_,KEY),ROL=null,V="login",CUR=null,LIST=[],CH=null,MSG="";
-function esc(t){return String(t==null?"":t).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function esc(t){return String(t==null?"":t).replace(/[&<>"'`]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;","`":"&#96;"}[c]})}
 function p2(n){return String(n).padStart(2,"0")}
 function hoy(){var d=new Date();return d.getFullYear()+"-"+p2(d.getMonth()+1)+"-"+p2(d.getDate())}
 function fmt(f){if(!f)return"";var p=f.split("-");return p[2]+"/"+p[1]+"/"+p[0]}
@@ -65,13 +67,13 @@ async function init(){
  ROL=pr.data?pr.data.rol:"cliente";
  if(ROL==="coach"){await loadList();V="lista";draw()}else{await loadMine()}}
 var LIB=[];
-async function loadList(){var r=await sb.from("clientes").select("*").order("nombre");LIST=r.data||[];var e=await sb.from("ejercicios").select("*").order("nombre");LIB=e.data||[];var g=await sb.from("config").select("*");CFG={};(g.data||[]).forEach(x=>CFG[x.clave]=x.valor)}
+async function loadList(){var r=await sb.from("clientes").select("*").order("nombre");LIST=r.data||[];var e=await sb.from("ejercicios").select("*").order("nombre");LIB=(e.data||[]).map(x=>(x.bloque=nb(x.bloque),x));var g=await sb.from("config").select("*");CFG={};(g.data||[]).forEach(x=>CFG[x.clave]=x.valor);await loadSol()}
 async function loadCur(id){
- var a=await Promise.all([sb.from("clientes").select("*").eq("id",id).single(),sb.from("plan_dias").select("*").eq("cliente_id",id).order("fecha"),sb.from("pesos").select("*").eq("cliente_id",id).order("fecha"),sb.from("adjuntos").select("*").eq("cliente_id",id).order("creado"),sb.from("registros").select("*").eq("cliente_id",id).order("creado"),sb.from("comidas").select("*").eq("cliente_id",id).order("creado")]);
- CUR={c:a[0].data,p:a[1].data||[],w:a[2].data||[],adj:a[3].data||[],reg:a[4].data||[],com:a[5].data||[]}}
+ var a=await Promise.all([sb.from("clientes").select("*").eq("id",id).single(),sb.from("plan_dias").select("*").eq("cliente_id",id).order("fecha"),sb.from("pesos").select("*").eq("cliente_id",id).order("fecha"),sb.from("adjuntos").select("*").eq("cliente_id",id).order("creado"),sb.from("registros").select("*").eq("cliente_id",id).order("creado"),sb.from("comidas").select("*").eq("cliente_id",id).order("creado"),sb.from("plan_nutri").select("*").eq("cliente_id",id)]);
+ CUR={c:a[0].data,p:a[1].data||[],w:a[2].data||[],adj:a[3].data||[],reg:a[4].data||[],com:a[5].data||[],nu:a[6].data||[]}}
 async function loadMine(){
  var r=await sb.from("clientes").select("id").limit(1);
- if(!r.data||!r.data.length){CUR=null;V="sinacceso";return draw()}
+ if(!r.data||!r.data.length){CUR=null;await loadSolMia();V="sinacceso";return draw()}
  await loadCur(r.data[0].id);var w=await sb.from("config").select("*");CFG={};(w.data||[]).forEach(x=>CFG[x.clave]=x.valor);WA=CFG.wa_coach||"";V="cli";draw()}
 async function login(nuevo){
  var e=$("em").value.trim(),p=$("pw").value;MSG="";
@@ -82,15 +84,14 @@ async function login(nuevo){
 async function salir(){leave();await sb.auth.signOut();ROL=null;V="login";draw()}
 function draw(){
  var h="";
- if(V==="login")h=vLogin();else if(V==="sinacceso")h=vSin();else if(V==="lista")h=vLista();else if(V==="nuevo")h=vNuevo();else if(V==="det")h=vDet();else if(V==="cli")h=vCli();else if(V==="tab")h=vTab();
+ if(V==="login")h=vLogin();else if(V==="sinacceso")h=vSin();else if(V==="lista")h=vLista();else if(V==="nuevo")h=vNuevo();else if(V==="det")h=vDet();else if(V==="cli")h=vCli();else if(V==="tab")h=vTab();else if(V==="pdf")h=vPdf();
  $("app").innerHTML=h;
- if($("msgs"))chatStart();if($("tinfo"))tInfo()}
-function vLogin(){return '<h1>Mi Coach</h1><div class="card"><label>Mail</label><input id="em" type="email" autocomplete="email"><label>Contraseña (mínimo 6 caracteres)</label><input id="pw" type="password" autocomplete="current-password">'+(MSG?'<p class="bad">'+esc(MSG)+'</p>':'')+'<button class="p w" onclick="login(false)">Entrar</button><button class="w" onclick="login(true)">Crear cuenta</button><p class="mut">Si sos cliente, creá tu cuenta con el mismo mail con el que te cargó tu coach.</p></div>'}
-function vSin(){return '<h1>Mi Coach</h1><div class="card"><p>Tu coach todavía no te dio acceso con este mail. Pedile que cargue tu mail en la app y volvé a entrar.</p><button class="w" onclick="salir()">Salir</button></div>'}
+ if($("tinfo"))tInfo();if($("zl"))zl()}
+function vLogin(){return '<h1>Mi Coach</h1><div class="card"><label>Mail</label><input id="em" type="email" autocomplete="email"><label>Contraseña (mínimo 6 caracteres)</label><input id="pw" type="password" autocomplete="current-password">'+(MSG?'<p class="bad">'+esc(MSG)+'</p>':'')+'<button class="p w" onclick="login(false)">Entrar</button><button class="w" onclick="login(true)">Crear cuenta</button><p class="mut">Si sos cliente, creá tu cuenta y completá tus datos: tu coach te va a aceptar.</p></div>'}
 function vLista(){
- var h='<div class="row"><h1>Mis clientes</h1><button onclick="salir()">Salir</button></div><button class="p w" onclick="go(\'nuevo\')">+ Nuevo cliente</button><button class="w" onclick="go(\'tab\')">⏱ Temporizador Tabata</button>'+cfgH();
- if(!LIST.length)h+='<p class="mut">Todavía no cargaste clientes.</p>';
- LIST.forEach(function(c){h+='<div class="card" onclick="openC(\''+c.id+'\')"><div class="row"><b>'+esc(c.nombre)+'</b><span class="tag '+(pagoOk(c)?"ok":"bad")+'">'+(pagoOk(c)?"Pagó":"Sin pago")+'</span></div><div class="mut">'+esc(c.objetivo||"Sin objetivo")+'</div></div>'});
+ var h='<div class="row"><h1>Mis clientes</h1><button onclick="salir()">Salir</button></div><button class="w" onclick="go(\'tab\')">⏱ Temporizador Tabata</button>'+solH()+cfgH();
+ if(!LIST.length)h+='<p class="mut">Todavía no cargaste clientes.</p>';else h+='<p class="mut">Pagos al día: '+LIST.filter(function(c){return pagoOk(c)}).length+' de '+LIST.length+(function(){var n=LIST.filter(function(c){return pagoOk(c)&&c.vence&&c.vence<=ymd(new Date(Date.now()+5*864e5))}).length;return n?' · ⚠ '+n+' vencen en 5 días':""})()+'</p>';
+ LIST.forEach(function(c){h+='<div class="card" onclick="openC(\''+c.id+'\')"><div class="row"><b>'+esc(c.nombre)+'</b><span class="tag '+(pagoOk(c)?"ok":"bad")+'">'+(pagoOk(c)?"Pagó"+(c.vence?" · hasta "+fmt(c.vence).slice(0,5):""):"Sin pago")+'</span></div><div class="mut">'+esc(c.objetivo||"Sin objetivo")+'</div>'+(pagoOk(c)?"":'<button class="p w" onclick="event.stopPropagation();pagoRapido(\''+c.id+'\')">✓ Pagó (suma 1 mes)</button>')+'</div>'});
  return h}
 function vNuevo(){return '<h1>Nuevo cliente</h1><div class="card"><label>Nombre</label><input id="n"><label>Mail (el que va a usar para entrar)</label><input id="e" type="email"><label>Objetivo</label><input id="o"><button class="p w" onclick="addC()">Guardar</button><button class="w" onclick="go(\'lista\')">Cancelar</button></div>'}
 async function addC(){
@@ -103,68 +104,55 @@ function sel(k,v,o){return '<select onchange="setF(\''+k+'\',this.value)">'+o.ma
 function num(k,l,c){return '<div><label>'+l+'</label><input type="number" inputmode="decimal" value="'+esc(c[k])+'" onchange="setF(\''+k+'\',this.value)"></div>'}
 function vDet(){
  var c=CUR.c,k=kcal(c),h='<button onclick="loadList().then(function(){go(\'lista\')})">← Clientes</button><h1>'+esc(c.nombre)+'</h1><div class="mut">'+esc(c.email)+'</div>'+(c.telefono?'<a href="https://wa.me/'+String(c.telefono).replace(/\D/g,"")+'" target="_blank"><button class="p w">Escribirle por WhatsApp</button></a>':'<p class="mut">Todavía no cargó su WhatsApp.</p>');
- h+='<div class="card"><div class="row"><b>Pago</b><span class="tag '+(pagoOk(c)?"ok":"bad")+'">'+(pagoOk(c)?"Al día":"Bloqueado")+'</span></div><label>Pagado hasta (opcional)</label><input type="date" value="'+esc(c.vence||"")+'" onchange="setF(\'vence\',this.value||null)"><button class="w '+(c.pagado?"":"p")+'" onclick="setF(\'pagado\','+!c.pagado+')">'+(c.pagado?"Marcar como NO pagó":"Marcar como pagó")+'</button><p class="mut">Si no pagó o venció, el cliente no ve su plan.</p></div>';
- h+=DP("ficha","📋 Datos del cliente",'<div class="card"><b>Ficha</b><div class="g2"><div><label>Sexo</label>'+sel("sexo",c.sexo,[["mujer","Mujer"],["hombre","Hombre"]])+'</div>'+num("edad","Edad",c)+num("peso","Peso (kg)",c)+num("altura","Altura (cm)",c)+num("dias","Días por semana",c)+'<div><label>Objetivo calórico</label>'+sel("obj",c.obj,[["deficit","Déficit"],["mantener","Mantener"],["superavit","Superávit"]])+'</div></div><p>¿Entrenó antes? <b>'+esc(c.entreno||"Sin dato")+'</b></p><label>Lesiones o patologías</label><textarea rows="2" onchange="setF(\'lesiones\',this.value)">'+esc(c.lesiones)+'</textarea>'+(c.lesiones?'<p class="bad">⚠ Revisá las lesiones antes de aprobar el plan.</p>':"")+(k?'<p>Estimación aproximada: <b>'+k.k+' kcal</b> y <b>'+k.p+' g</b> de proteína por día.</p>':'<p class="mut">Completá sexo, edad, peso y altura para ver la estimación.</p>')+'</div>');
- var ph="";CUR.p.forEach(function(d){ph+='<div class="card"><div class="row"><b>'+fmt(d.fecha)+' · '+esc(d.titulo)+'</b><span class="tag '+(d.aprobado?"ok":"mut")+'">'+(d.aprobado?"Aprobado":"Borrador")+'</span></div><div class="mut">'+d.items.map(function(x){return esc(itemTxt(x))}).join(" · ")+'</div><div class="g2"><button onclick="aprobar(\''+d.id+'\','+!d.aprobado+')">'+(d.aprobado?"Pasar a borrador":"Aprobar")+'</button><button onclick="delD(\''+d.id+'\')">Quitar</button></div></div>'});
- h+=DP("plan","🏋 Rutina",ph+armarH())+DP("peso","⚖ Progreso de peso",'<div class="card">'+pesoH()+'</div>')+DP("media","📸 Fotos y videos ("+CUR.adj.length+")",dpMedia())+DP("prog","📈 Progresión",dpProg())+DP("nutri","🍽 Alimentación",dpNutri())+'<button class="w" onclick="delC()">Borrar cliente</button>';
+ h+='<div class="card"><div class="row"><b>Pago</b><span class="tag '+(pagoOk(c)?"ok":"bad")+'">'+(pagoOk(c)?"Al día":"Bloqueado")+'</span></div>'+pagoH(c)+'<p class="mut">Si no pagó o venció, el cliente no ve su plan.</p></div>';
+ h+=cumpH()+DP("ficha","📋 Datos del cliente",'<div class="card"><b>Ficha</b><div class="g2"><div><label>Sexo</label>'+sel("sexo",c.sexo,[["mujer","Mujer"],["hombre","Hombre"]])+'</div>'+num("edad","Edad",c)+num("peso","Peso (kg)",c)+num("altura","Altura (cm)",c)+num("dias","Días por semana",c)+'<div><label>Objetivo calórico</label>'+sel("obj",c.obj,[["deficit","Déficit"],["mantener","Mantener"],["superavit","Superávit"]])+'</div></div><p>¿Entrenó antes? <b>'+esc(c.entreno||"Sin dato")+'</b></p><label>Lesiones o patologías</label><textarea rows="2" onchange="setF(\'lesiones\',this.value)">'+esc(c.lesiones)+'</textarea>'+(c.lesiones?'<p class="bad">⚠ Revisá las lesiones antes de aprobar el plan.</p>':"")+(k?'<p>Estimación aproximada: <b>'+k.k+' kcal</b> y <b>'+k.p+' g</b> de proteína por día.</p>':'<p class="mut">Completá sexo, edad, peso y altura para ver la estimación.</p>')+'</div>');
+ var ph="";CUR.p.forEach(function(d){ph+='<div class="card"><div class="row"><b>'+fmt(d.fecha)+' · '+esc(d.titulo)+'</b><span class="tag '+(d.aprobado?"ok":"mut")+'">'+(d.aprobado?"Aprobado":"Borrador")+'</span></div><div class="mut">'+d.items.map(function(x){return esc(itemTxt(x))}).join(" · ")+'</div><div class="g2"><button onclick="aprobar(\''+d.id+'\','+!d.aprobado+')">'+(d.aprobado?"Pasar a borrador":"Aprobar")+'</button><button onclick="delD(\''+d.id+'\')">Quitar</button></div><div class="g2" style="margin-top:8px"><input type="date" id="cp'+d.id+'"><button onclick="copiarD(\''+d.id+'\')">Copiar a esa fecha</button></div></div>'});
+ h+=DP("plan","🏋 Rutina",ph+armarH())+DP("peso","⚖ Progreso de peso",'<div class="card">'+pesoH()+'</div>')+DP("reg","📈 Marcas de ejercicios",regH())+DP("media","📸 Fotos y videos ("+CUR.adj.length+")",dpMedia())+DP("nutri","🍽 Alimentación",dpNutri())+'<button class="w" onclick="delC()">Borrar cliente</button>';
  return h}
-async function setF(k,v){var o={};o[k]=v;var r=await sb.from("clientes").update(o).eq("id",CUR.c.id);if(r.error){alert(r.error.message);return}CUR.c[k]=v;draw()}
-var BLOQ=["Entrada en calor","Activación","Principal","Core","Vuelta a la calma"],PLANOS=["sagital","frontal","transversal"],DRAFT=[],DF=hoy(),DT="",DB="Principal";
+async function setF(k,v){var o={};o[k]=v;var r=await sb.from("clientes").update(o).eq("id",CUR.c.id);if(r.error){alert(r.error.message);return}CUR.c[k]=v;redraw()}
+var BLOQ=["Activación","Core","Principal","Secundario","Vuelta a la calma"],PLANOS=["sagital","frontal","transversal"],DRAFT=[],DF=hoy(),DT="",DB="Principal";
 function itemTxt(x){return typeof x==="string"?x:x.nombre+(x.detalle?" — "+x.detalle:"")}
 function opts(a,v){return a.map(function(o){return '<option'+(o===v?" selected":"")+'>'+o+'</option>'}).join("")}
 function armarH(){
- var ops=LIB.filter(function(e){return e.bloque===DB}),h='<div class="card"><b>Armar día de entrenamiento</b><button class="w" onclick="runPreset()">🏃 Cargar día de running</button><label>Fecha</label><input type="date" value="'+DF+'" onchange="DF=this.value"><label>Título</label><input value="'+esc(DT)+'" onchange="DT=this.value" placeholder="Ej: Tren inferior"><label>Bloque</label><select onchange="DB=this.value;draw()">'+opts(BLOQ,DB)+'</select><label>Ejercicio de tu biblioteca</label><select id="xe"><option value="">— elegir —</option>'+ops.map(function(e){return '<option value="'+e.id+'">'+esc(e.nombre)+'</option>'}).join("")+'</select>'+(ops.length?'':'<p class="mut">No tenés ejercicios en este bloque. Cargalos abajo en la biblioteca.</p>')+'<label>Series y repeticiones</label><input id="xd" placeholder="Ej: 3x12 con 10 kg, o libre / con mancuerna"><button class="w" onclick="addX()">+ Agregar al día</button>';
+ var ops=LIB.filter(function(e){return e.bloque===DB}),h='<div class="card"><b>Armar día de entrenamiento</b><button class="w" onclick="runPreset()">🏃 Cargar día de running</button><label>Fecha</label><input type="date" value="'+DF+'" onchange="DF=this.value"><label>Título</label><input value="'+esc(DT)+'" onchange="DT=this.value" placeholder="Ej: Tren inferior"><label>Bloque</label><select onchange="DB=this.value;redraw()">'+opts(BLOQ,DB)+'</select><label>Ejercicio de tu biblioteca</label>'+zonasH()+'<button class="w" onclick="addX()">+ Agregar marcados al día</button>';
  DRAFT.forEach(function(x,i){h+='<div class="row mut" style="margin-top:6px"><span>'+esc(x.bloque+": "+itemTxt(x))+'</span><button onclick="DRAFT.splice('+i+',1);draw()">✕</button></div>'});
  return h+'<button class="p w" onclick="addD()">Guardar día como borrador</button></div>'+libH()}
-function addX(){var e=LIB.find(function(z){return z.id===$("xe").value});if(!e)return;DRAFT.push({bloque:DB,nombre:e.nombre,detalle:$("xd").value.trim(),video:e.video||"",plano:e.plano||""});draw()}
 async function addD(){
  if(!DT.trim()||!DRAFT.length){alert("Poné un título y al menos un ejercicio.");return}
  var r=await sb.from("plan_dias").insert({cliente_id:CUR.c.id,fecha:DF||hoy(),titulo:DT.trim(),items:DRAFT});
  if(r.error){alert(r.error.message);return}
  DRAFT=[];DT="";await loadCur(CUR.c.id);draw()}
 function libH(){
- var h='<h2>Mi biblioteca de ejercicios</h2><div class="card"><label>Nombre</label><input id="ln"><div class="g2"><div><label>Bloque</label><select id="lb">'+opts(BLOQ,"Principal")+'</select></div><div><label>Plano del video</label><select id="lp">'+opts(PLANOS,"sagital")+'</select></div></div><label>Link del video (YouTube, Drive, etc.)</label><input id="lv" type="url" placeholder="https://"><button class="p w" onclick="addLib()">Guardar ejercicio</button></div>';
- LIB.forEach(function(e){h+='<div class="row mut" style="margin:6px 0"><span>'+esc(e.bloque+": "+e.nombre)+(e.video?" ▶ "+esc(e.plano||""):"")+'</span><button onclick="delLib(\''+e.id+'\')">✕</button></div>'});
+ var h='<h2>Mi biblioteca de ejercicios</h2><div class="card"><label>Nombre</label><input id="ln"><div class="g2"><div><label>Bloque</label><select id="lb">'+opts(BLOQ,"Principal")+'</select></div><div><label>Plano del video</label><select id="lp">'+opts(PLANOS,"sagital")+'</select></div></div><label>Categoría</label><select id="lz">'+opts(ZON,"Tren superior")+'</select><label>Link del video (YouTube, Drive, etc.)</label><input id="lv" type="url" placeholder="https://"><button class="p w" onclick="addLib()">Guardar ejercicio</button></div>';
+ ZON.concat(["Sin categoría"]).forEach(z=>{var l=LIB.filter(e=>(e.grupo||"Sin categoría")==z);if(!l.length)return;h+=DP("lib"+z,z+" ("+l.length+")",l.map(e=>'<div class="row mut" style="margin:6px 0"><span>'+esc(e.nombre)+(e.video?" ▶ "+esc(e.plano||""):"")+'</span>'+(e.grupo?'':'<select style="width:auto" onchange="setZ(\''+e.id+'\',this.value)"><option value="">Categoría…</option>'+ZON.map(o=>'<option>'+o+'</option>').join("")+'</select>')+'<button onclick="delLib(\''+e.id+'\')">✕</button></div>').join(""))});
  return h}
 async function addLib(){
  var n=$("ln").value.trim();if(!n)return;
- var r=await sb.from("ejercicios").insert({nombre:n,bloque:$("lb").value,plano:$("lp").value,video:$("lv").value.trim()||null});
+ var r=await sb.from("ejercicios").insert({nombre:n,bloque:$("lb").value,grupo:$("lz").value,plano:$("lp").value,video:$("lv").value.trim()||null});
  if(r.error){alert(r.error.message);return}
  await loadList();draw()}
 async function delLib(i){if(!confirm("¿Borrar este ejercicio de la biblioteca?"))return;await sb.from("ejercicios").delete().eq("id",i);await loadList();draw()}
 function itemsH(d){
  var h="";
  BLOQ.forEach(function(b){
-  var g=d.items.map(function(x,i){return[x,i]}).filter(function(p){return(typeof p[0]==="object"?p[0].bloque:"Principal")===b});
+  var g=d.items.map(function(x,i){return[x,i]}).filter(function(p){return nb(typeof p[0]==="object"?p[0].bloque:"Principal")===b});
   if(!g.length)return;
   h+='<div class="mut" style="margin-top:10px"><b>'+b+'</b></div>';
   g.forEach(function(p){var x=p[0],i=p[1];
-   h+='<label class="item" style="color:var(--tx);font-size:17px"><input type="checkbox" '+(d.hecho[i]?"checked":"")+' onchange="tick(\''+d.id+'\','+i+',this.checked)"><span>'+esc(itemTxt(x))+(x.plano?' <span class="tag mut">'+esc(x.plano)+'</span>':'')+'</span></label>'+(x.video?'<div style="margin:0 0 6px 36px"><button onclick="vid(this,\''+esc(x.video)+'\')">▶ Ver video (plano '+esc(x.plano||"")+')</button><div></div></div>':'')})});
+   h+='<label class="item" style="color:var(--tx);font-size:17px"><input type="checkbox" '+(d.hecho[i]?"checked":"")+' onchange="tick(\''+d.id+'\','+i+',this.checked)"><span>'+esc(itemTxt(x))+(x.plano?' <span class="tag mut">'+esc(x.plano)+'</span>':'')+'</span></label>'+(x.video?'<div style="margin:0 0 6px 36px"><button data-v="'+esc(x.video)+'" onclick="vid(this,this.dataset.v)">▶ Ver video (plano '+esc(x.plano||"")+')</button><div></div></div>':'')+markH(d,x,i)})});
  return h}
 function fichaCli(c){
- return '<div class="card"><b>Mis datos</b><p class="mut">Completalos para que tu coach pueda armar tu plan. Una vez guardados no se pueden modificar: revisalos bien.</p><div class="g2"><div><label>Sexo</label><select id="fs">'+opts(["mujer","hombre"],c.sexo)+'</select></div><div><label>Edad</label><input id="fe" type="number" inputmode="numeric" value="'+esc(c.edad)+'"></div><div><label>Peso (kg)</label><input id="fp" type="number" inputmode="decimal" value="'+esc(c.peso)+'"></div><div><label>Altura (cm)</label><input id="fa" type="number" inputmode="numeric" value="'+esc(c.altura)+'"></div><div><label>Días por semana</label><input id="fd" type="number" inputmode="numeric" value="'+esc(c.dias)+'"></div><div><label>Objetivo calórico</label><select id="fo">'+opts(["deficit","mantener","superavit"],c.obj)+'</select></div></div><label>¿Entrenaste antes? Contá hace cuánto y qué hacías (o escribí "nunca")</label><textarea id="fx" rows="2">'+esc(c.entreno)+'</textarea><label>Lesiones o patologías</label><textarea id="fl" rows="2">'+esc(c.lesiones)+'</textarea><label>Tu WhatsApp con código de país (ej: 5491155551234)</label><input id="ft" type="tel" inputmode="numeric" value="'+esc(c.telefono)+'"><button class="p w" onclick="guardarFicha()">Guardar mis datos</button></div>'}
-async function guardarFicha(){if(!confirm("Una vez guardados no vas a poder modificarlos. ¿Guardar?"))return;
+ return '<div class="card"><b>Mis datos</b><p class="mut">Completalos para que tu coach pueda armar tu plan. Podés actualizarlos cuando cambien.</p><div class="g2"><div><label>Sexo</label><select id="fs">'+opts(["mujer","hombre"],c.sexo)+'</select></div><div><label>Edad</label><input id="fe" type="number" inputmode="numeric" value="'+esc(c.edad)+'"></div><div><label>Peso (kg)</label><input id="fp" type="number" inputmode="decimal" value="'+esc(c.peso)+'"></div><div><label>Altura (cm)</label><input id="fa" type="number" inputmode="numeric" value="'+esc(c.altura)+'"></div><div><label>Días por semana</label><input id="fd" type="number" inputmode="numeric" value="'+esc(c.dias)+'"></div><div><label>Objetivo calórico</label><select id="fo">'+opts(["deficit","mantener","superavit"],c.obj)+'</select></div></div><label>¿Entrenaste antes? Contá hace cuánto y qué hacías (o escribí "nunca")</label><textarea id="fx" rows="2">'+esc(c.entreno)+'</textarea><label>Lesiones o patologías</label><textarea id="fl" rows="2">'+esc(c.lesiones)+'</textarea><label>Tu WhatsApp con código de país (ej: 5491155551234)</label><input id="ft" type="tel" inputmode="numeric" value="'+esc(c.telefono)+'"><button class="p w" onclick="guardarFicha()">Guardar mis datos</button></div>'}
+async function guardarFicha(){
  var n=function(i){var v=parseFloat($(i).value);return isNaN(v)?null:v};
- var r=await sb.rpc("guardar_mi_ficha",{p_sexo:$("fs").value,p_edad:n("fe"),p_peso:n("fp"),p_altura:n("fa"),p_dias:n("fd"),p_obj:$("fo").value,p_lesiones:$("fl").value,p_entreno:$("fx").value,p_tel:$("ft").value.trim()});
+ var r=await sb.rpc("actualizar_mi_ficha",{p_sexo:$("fs").value,p_edad:n("fe"),p_peso:n("fp"),p_altura:n("fa"),p_dias:n("fd"),p_obj:$("fo").value,p_lesiones:$("fl").value,p_entreno:$("fx").value,p_tel:$("ft").value.trim()});
  if(r.error){alert(r.error.message);return}
  await loadCur(CUR.c.id);draw();alert("Datos guardados.")}
 async function aprobar(i,v){await sb.from("plan_dias").update({aprobado:v}).eq("id",i);await loadCur(CUR.c.id);draw()}
 async function delD(i){await sb.from("plan_dias").delete().eq("id",i);await loadCur(CUR.c.id);draw()}
 async function delC(){if(confirm("¿Borrar este cliente y todos sus datos?")){await sb.from("clientes").delete().eq("id",CUR.c.id);await loadList();go("lista")}}
-function pesoH(){
- var w=CUR.w,h="";
- if(w.length){var d=(w[w.length-1].kg-w[0].kg).toFixed(1);h+='<p><b>'+w[w.length-1].kg+' kg</b> · cambio desde el inicio: '+(d>0?"+":"")+d+' kg</p>';w.slice(-5).reverse().forEach(function(p){h+='<div class="mut">'+fmt(p.fecha)+': '+p.kg+' kg</div>'})}
- return h+'<div class="row"><input type="number" inputmode="decimal" id="pk" placeholder="Peso en kg"><button class="p" onclick="addP()">Anotar</button></div>'}
 async function addP(){var v=parseFloat($("pk").value);if(!v)return;var r=await sb.from("pesos").insert({cliente_id:CUR.c.id,kg:v});if(r.error){alert(r.error.message);return}await loadCur(CUR.c.id);draw()}
 async function tick(i,n,v){var d=CUR.p.find(function(x){return x.id===i});d.hecho[n]=v;await sb.from("plan_dias").update({hecho:d.hecho}).eq("id",i)}
-function chatH(){return '<h2>Chat</h2><div class="card"><div id="msgs" style="max-height:320px;overflow:auto"></div><div class="row"><input id="mt" placeholder="Escribí un mensaje"><button class="p" onclick="send()">Enviar</button></div></div>'}
-async function loadMsgs(){
- var r=await sb.from("mensajes").select("*").eq("cliente_id",CUR.c.id).order("creado"),me=ROL==="coach"?"coach":"cliente",b=$("msgs");if(!b)return;
- b.innerHTML=(r.data||[]).map(function(m){return '<div class="b'+(m.de===me?" yo":"")+'">'+esc(m.texto)+'</div>'}).join("")||'<p class="mut">Todavía no hay mensajes.</p>';b.scrollTop=b.scrollHeight}
-function chatStart(){
- loadMsgs();if(CH)sb.removeChannel(CH);
- CH=sb.channel("m"+CUR.c.id).on("postgres_changes",{event:"INSERT",schema:"public",table:"mensajes",filter:"cliente_id=eq."+CUR.c.id},loadMsgs).subscribe()}
-async function send(){var t=$("mt").value.trim();if(!t)return;$("mt").value="";var r=await sb.from("mensajes").insert({cliente_id:CUR.c.id,de:ROL==="coach"?"coach":"cliente",texto:t});if(r.error)alert(r.error.message)}
 var T={q:[],i:0,l:0,h:null,wl:null,ac:null};
 function beep(f){try{T.ac=T.ac||new(window.AudioContext||window.webkitAudioContext)();var o=T.ac.createOscillator(),g=T.ac.createGain();o.frequency.value=f;g.gain.value=.3;o.connect(g);g.connect(T.ac.destination);o.start();o.stop(T.ac.currentTime+.25)}catch(e){}try{navigator.vibrate&&navigator.vibrate(200)}catch(e){}}
 function paint(b){$("tdisp").style.color=T.q[T.i][0]=="¡Trabajo!"?"var(--pri)":"var(--ok)";$("tdisp").textContent=T.l;$("tfase").textContent=T.q[T.i][0]+" ("+(T.i+1)+"/"+T.q.length+")";if(b)beep(T.q[T.i][0]==="¡Trabajo!"?880:440)}
@@ -179,17 +167,15 @@ function tStart(){
 var OPEN={};
 function DP(k,t,b){return '<details style="margin:10px 0"'+(OPEN[k]?" open":"")+' ontoggle="OPEN[\''+k+'\']=this.open"><summary style="font-size:18px;font-weight:600;padding:14px;background:var(--card);border:1px solid var(--bd);border-radius:14px;cursor:pointer">'+t+'</summary>'+b+'</details>'}
 function embed(u){var m=u.match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([\w-]{11})/);if(m)return"https://www.youtube.com/embed/"+m[1];m=u.match(/drive\.google\.com\/file\/d\/([\w-]+)/);if(m)return"https://drive.google.com/file/d/"+m[1]+"/preview";return null}
-function vid(b,u){var x=b.nextElementSibling;if(x.innerHTML){x.innerHTML="";return}var e=embed(u);if(!e){window.open(u,"_blank");return}x.innerHTML='<iframe src="'+e+'" allowfullscreen style="width:100%;aspect-ratio:16/9;border:0;border-radius:10px;margin-top:6px"></iframe>'}
-function pdf(){document.querySelectorAll("details").forEach(function(d){d.open=true});setTimeout(function(){window.print()},300)}
-
+function vid(b,u){var x=b.nextElementSibling;if(x.innerHTML){x.innerHTML="";return}var e=embed(u);if(!e){if(/^https?:\/\//i.test(u))window.open(u,"_blank","noopener");return}x.innerHTML='<iframe src="'+e+'" allowfullscreen style="width:100%;aspect-ratio:16/9;border:0;border-radius:10px;margin-top:6px"></iframe>'}
 function coach(){return ROL==="coach"}
-async function subir(f){var e=(f.name.split(".").pop()||"bin").toLowerCase(),p=CUR.c.id+"/"+Date.now()+"."+e,r=await sb.storage.from("archivos").upload(p,f,{contentType:f.type});if(r.error){alert(r.error.message);return null}return p}
+async function subir(f){var e=(f.name.split(".").pop()||"bin").toLowerCase().replace(/[^a-z0-9]/g,"").slice(0,5)||"bin",p=CUR.c.id+"/"+Date.now()+"."+e,r=await sb.storage.from("archivos").upload(p,f,{contentType:f.type});if(r.error){alert(r.error.message);return null}return p}
 async function ver(b,p){var x=b.nextElementSibling;if(x.innerHTML){x.innerHTML="";return}var r=await sb.storage.from("archivos").createSignedUrl(p,3600);if(r.error){alert(r.error.message);return}var u=r.data.signedUrl;x.innerHTML=/\.(mp4|mov|webm|m4v|3gp)$/i.test(p)?'<video src="'+u+'" controls playsinline style="width:100%;border-radius:10px;margin-top:6px"></video>':'<img src="'+u+'" style="width:100%;border-radius:10px;margin-top:6px">'}
 function dpMedia(){
  var h="";
- if(!coach())h+='<div class="card"><label>Qué vas a subir</label><select id="at">'+opts(["Foto inicial","Foto mensual","Video de ejercicio"],"Foto inicial")+'</select><label>Plano</label><select id="ap">'+opts(["frontal","sagital","transversal"],"frontal")+'</select><label>Comentario (opcional)</label><input id="an"><label>Archivo (video: hasta 50 MB, unos 30 a 60 segundos)</label><input id="af" type="file" accept="image/*,video/*"><button class="p w" id="ab" onclick="subirA()">Subir</button></div>';
+ if(!coach())h+='<div class="card"><label>Qué vas a subir</label><select id="at">'+opts(["Ejercicio de hoy","Foto de progreso (mensual)","Foto inicial"],"Ejercicio de hoy")+'</select><label>Plano</label><select id="ap">'+opts(["frontal","sagital","transversal"],"frontal")+'</select><label>Comentario (opcional)</label><input id="an"><label>Archivo (video: hasta 50 MB, unos 30 a 60 segundos)</label><input id="af" type="file" accept="image/*,video/*"><button class="p w" id="ab" onclick="subirA()">Subir</button></div>';
  CUR.adj.slice().reverse().forEach(function(a){
-  h+='<div class="card"><div class="row"><b>'+esc(a.tipo)+(a.plano?" · plano "+esc(a.plano):"")+'</b><span class="mut">'+fmt(a.creado.slice(0,10))+'</span></div>'+(a.nota?'<div class="mut">'+esc(a.nota)+'</div>':'')+'<button class="w" onclick="ver(this,\''+esc(a.path)+'\')">Ver</button><div></div>';
+  h+='<div class="card"><div class="row"><b>'+esc(a.tipo)+(a.plano?" · plano "+esc(a.plano):"")+'</b><span class="mut">'+fmt(a.creado.slice(0,10))+'</span></div>'+(a.nota?'<div class="mut">'+esc(a.nota)+'</div>':'')+'<button class="w" data-p="'+esc(a.path)+'" onclick="ver(this,this.dataset.p)">Ver</button><div></div>';
   if(coach())h+='<label>Tu devolución</label><textarea id="dv'+a.id+'" rows="2">'+esc(a.devolucion)+'</textarea><button class="p w" onclick="devol(\''+a.id+'\')">Guardar devolución</button>';
   else if(a.devolucion)h+='<p><b>Devolución de tu coach:</b> '+esc(a.devolucion)+'</p>';
   h+='</div>'});
@@ -201,16 +187,6 @@ async function subirA(){
  var r=await sb.from("adjuntos").insert({cliente_id:CUR.c.id,tipo:$("at").value,plano:$("ap").value,nota:$("an").value.trim()||null,path:p});
  if(r.error)alert(r.error.message);await loadCur(CUR.c.id);draw()}
 async function devol(i){var r=await sb.from("adjuntos").update({devolucion:$("dv"+i).value}).eq("id",i);if(r.error){alert(r.error.message);return}alert("Devolución guardada.");await loadCur(CUR.c.id);draw()}
-function dpProg(){
- var h="",g={};
- CUR.reg.forEach(function(r){(g[r.ejercicio]=g[r.ejercicio]||[]).push(r)});
- if(!coach()){var ns=[];CUR.p.forEach(function(d){d.items.forEach(function(x){if(typeof x==="object"&&ns.indexOf(x.nombre)<0)ns.push(x.nombre)})});
-  h+='<div class="card"><label>Ejercicio</label><select id="re"><option value="">— elegir —</option>'+ns.map(function(n){return '<option>'+esc(n)+'</option>'}).join("")+'</select><div class="g2"><div><label>Peso (kg)</label><input id="rk" type="number" inputmode="decimal"></div><div><label>Repeticiones</label><input id="rr" type="number" inputmode="numeric"></div></div><button class="p w" onclick="addR()">Anotar</button></div>'}
- Object.keys(g).forEach(function(e){var a=g[e],f=a[0],l=a[a.length-1],mx=Math.max.apply(null,a.map(function(r){return+r.kg||0}));h+='<div class="card"><b>'+esc(e)+'</b><div class="mut">Primero: '+f.kg+' kg × '+f.reps+' · Último: '+l.kg+' kg × '+l.reps+' · Máximo: '+mx+' kg</div></div>'});
- return h||'<p class="mut">Todavía no hay registros.</p>'}
-async function addR(){
- var e=$("re").value,k=parseFloat($("rk").value),n=parseInt($("rr").value);if(!e||isNaN(k)||isNaN(n)){alert("Elegí el ejercicio y completá peso y repeticiones.");return}
- var r=await sb.from("registros").insert({cliente_id:CUR.c.id,ejercicio:e,kg:k,reps:n});if(r.error){alert(r.error.message);return}await loadCur(CUR.c.id);draw()}
 async function addN(){
  var d=$("nd").value.trim();if(!d){alert("Contá qué comiste.");return}
  $("nb").disabled=true;var f=$("nf").files[0],p=null;if(f){p=await subir(f);if(!p){draw();return}}
@@ -218,33 +194,25 @@ async function addN(){
 async function comen(i){var r=await sb.from("comidas").update({comentario:$("cc"+i).value}).eq("id",i);if(r.error){alert(r.error.message);return}alert("Comentario guardado.");await loadCur(CUR.c.id);draw()}
 var TAB="hoy",SEL=hoy(),MES=new Date(),WA="";
 var FR=["Hoy es un buen día para cumplirte una promesa.","No necesitás motivación, necesitás empezar. Ella llega después.","Cada repetición te acerca a quien querés ser.","Lo importante no es ir rápido, es no frenar.","Hablale bien a tu cuerpo: escucha todo.","Un entrenamiento imperfecto le gana a uno que no se hace.","La constancia vence al talento.","Hoy sumás un día más. Eso ya es ganar.","Sudar hoy, sonreír mañana.","No compares tu capítulo 1 con el capítulo 20 de otro.","Tu único rival es quien fuiste ayer.","Descansar también es parte del plan.","Si fuera fácil, todos lo harían. Vos lo estás haciendo.","Los resultados llegan a quienes se quedan.","Comé bien, entrená fuerte, descansá mejor.","Empezá donde estás, con lo que tenés.","Tu yo del futuro te lo va a agradecer.","Disciplina es elegir lo que querés más sobre lo que querés ahora.","Pasos chicos, todos los días.","Podés más de lo que creés.","No te pido perfección, te pido presencia."];
-function frase(){return FR[Math.floor((Date.now()-new Date().getTimezoneOffset()*6e4)/864e5)%FR.length]}
 function waB(){return WA?'<a href="https://wa.me/'+String(WA).replace(/\D/g,"")+'?text='+encodeURIComponent("Hola, soy "+CUR.c.nombre)+'" target="_blank"><button class="w" style="background:#25d366;color:#04210f;border-color:#25d366;font-weight:600">Escribirle a mi coach por WhatsApp</button></a>':""}
-function mes(n){MES=new Date(MES.getFullYear(),MES.getMonth()+n,1);draw()}
-function calH(){
- var y=MES.getFullYear(),mo=MES.getMonth(),off=(new Date(y,mo,1).getDay()+6)%7,nd=new Date(y,mo+1,0).getDate(),hs={};
- CUR.p.forEach(d=>hs[d.fecha]=1);
- var h='<div class="row"><button onclick="mes(-1)">‹</button><b class="tt" style="font-size:24px">'+new Date(y,mo,1).toLocaleDateString("es",{month:"long",year:"numeric"})+'</b><button onclick="mes(1)">›</button></div><div class="cal" style="margin-top:10px">'+"LMXJVSD".split("").map(l=>'<span class="mut">'+l+'</span>').join("")+"<span></span>".repeat(off);
- for(var i=1;i<=nd;i++){var f=y+"-"+p2(mo+1)+"-"+p2(i);h+='<button class="'+(f==SEL?"on":"")+'" onclick="SEL=\''+f+'\';draw()">'+i+(hs[f]?'<i class="dot"></i>':"")+'</button>'}
- return h+"</div>"}
 function tHoy(){
  var c=CUR.c,d=CUR.p.find(x=>x.fecha==SEL),n=d?Object.values(d.hecho||{}).filter(Boolean).length:0;
- return '<div class="card mot">“'+frase()+'”</div>'+waB()+'<div class="mut">Objetivo: '+esc(c.objetivo||"—")+'</div><div class="card">'+calH()+'</div>'+
+ return motH()+fotoMesH()+waB()+'<button class="w" onclick="go(\'pdf\')">⬇ Descargar mi rutina (PDF)</button>'+cumpH()+'<div class="mut">Objetivo: '+esc(c.objetivo||"—")+'</div><div class="card">'+calH()+'</div>'+
  (d?'<div class="card"><b class="tt" style="font-size:26px">'+esc(d.titulo)+'</b><div class="mut">'+d.items.length+' ejercicios · '+n+' hechos</div></div><div class="card">'+itemsH(d)+'</div>'+(d.items.some(x=>x.bloque==="Core")?'<button class="p w" onclick="go(\'tab\')">⏱ Tabata para el core</button>':""):'<div class="card">Sin entrenamiento cargado el '+fmt(SEL)+(SEL==hoy()?". Día para descansar o caminar un rato.":".")+'</div>')}
 function tNutri(){
  var c=CUR.c,k=kcal(c),O={deficit:"Déficit calórico",mantener:"Mantenimiento",superavit:"Superávit calórico"};
- return '<h1>Nutrición</h1><div class="card"><b>Mi objetivo: '+(O[c.obj]||"sin definir")+'</b>'+(k?'<p class="tt" style="font-size:28px;margin:8px 0">~'+k.k+' kcal · '+k.p+' g de proteína</p><p class="mut">Estimación según tu edad, sexo, peso, altura y días de entrenamiento. Tu coach la ajusta según tu progreso.</p>':'<p class="mut">Completá tus datos en “Más” para ver tu estimación.</p>')+'</div>'+dpNutri()}
+ return '<h1>Nutrición</h1><div class="card"><b>Mi objetivo: '+(O[c.obj]||"sin definir")+'</b>'+(k?'<p class="tt" style="font-size:28px;margin:8px 0">~'+k.k+' kcal · '+k.p+' g de proteína</p><p class="mut">Estimación según tu edad, sexo, peso, altura y días de entrenamiento. Tu coach la ajusta según tu progreso.</p>':'<p class="mut">Completá tus datos en “Más” para ver tu estimación.</p>')+'</div>'+macH(c)+menuH(c)+recetasH()+nuCliH()+dpNutri()}
 function vCli(){
- var c=CUR.c,h='<h1>Hola, '+esc(c.nombre.split(" ")[0])+'</h1>';
+ var c=CUR.c,h='<h1>Hola, '+esc(c.nombre.split(" ")[0])+' 👋</h1>';
  if(!pagoOk(c))return h+'<div class="card"><b class="bad">Tu plan está en pausa</b><p>Hay un pago pendiente. Hablá con tu coach para seguir entrenando.</p></div>'+waB()+'<button class="w" onclick="salir()">Salir</button>';
- var b=TAB=="hoy"?tHoy():TAB=="nutri"?tNutri():TAB=="prog"?'<h1>Progreso</h1><h2>Peso</h2><div class="card">'+pesoH()+'</div><h2>Cargas</h2>'+dpProg()+'<h2>Fotos y videos</h2>'+dpMedia():'<h1>Más</h1>'+linksH()+datosH(c)+'<button class="w" onclick="salir()">Salir</button><p class="mut">Las calorías son estimaciones. Esta app no reemplaza a un profesional de la salud.</p>';
+ var b=TAB=="hoy"?tHoy():TAB=="nutri"?tNutri():TAB=="prog"?'<h1>Progreso</h1><h2>Peso</h2><div class="card">'+pesoH()+'</div><h2>Mis marcas</h2>'+regH()+'<h2>Fotos y videos</h2>'+dpMedia():'<h1>Más</h1>'+linksH()+datosH(c)+'<button class="w" onclick="salir()">Salir</button><p class="mut">Las calorías son estimaciones. Esta app no reemplaza a un profesional de la salud.</p>';
  if(TAB=="hoy")h+=b;else h=b;
  return h+'<nav>'+[["hoy","Hoy"],["nutri","Nutrición"],["prog","Progreso"],["mas","Más"]].map(x=>'<button class="'+(TAB==x[0]?"on":"")+'" onclick="TAB=\''+x[0]+'\';leave();draw();scrollTo(0,0)">'+x[1]+'</button>').join("")+'</nav>'}
 function dpNutri(){
- var h="";
+ var h=coach()?nuCoachH():"";
  if(!coach())h+='<div class="card"><label>Momento</label><select id="nm">'+opts(["Desayuno","Almuerzo","Merienda","Cena","Snack"],"Almuerzo")+'</select><label>Qué comiste</label><textarea id="nd" rows="2"></textarea><label>Foto del plato (opcional)</label><input id="nf" type="file" accept="image/*"><button class="w" onclick="calcFoto()">✨ Calcular calorías de esta foto</button><p id="ia" class="mut"></p><button class="p w" id="nb" onclick="addN()">Guardar comida</button></div>';
  CUR.com.slice().reverse().forEach(function(m){
-  h+='<div class="card"><div class="row"><b>'+esc(m.momento)+'</b><span class="mut">'+fmt(m.fecha)+'</span></div><div>'+esc(m.descripcion)+'</div>'+(m.foto?'<button class="w" onclick="ver(this,\''+esc(m.foto)+'\')">Ver foto</button><div></div>':'');
+  h+='<div class="card"><div class="row"><b>'+esc(m.momento)+'</b><span class="mut">'+fmt(m.fecha)+'</span></div><div>'+esc(m.descripcion)+'</div>'+(m.foto?'<button class="w" data-p="'+esc(m.foto)+'" onclick="ver(this,this.dataset.p)">Ver foto</button><div></div>':'');
   if(coach())h+='<label>Tu comentario</label><textarea id="cc'+m.id+'" rows="2">'+esc(m.comentario)+'</textarea><button class="p w" onclick="comen(\''+m.id+'\')">Guardar comentario</button>';
   else if(m.comentario)h+='<p><b>Tu coach:</b> '+esc(m.comentario)+'</p>';
   h+='</div>'});
@@ -255,7 +223,7 @@ async function calcFoto(){
  var r=await sb.functions.invoke("analizar-plato",{body:{imagen:im,nota:$("nd").value}});
  if(r.error||!r.data||r.data.error)throw 0;
  o.textContent=r.data.texto;$("nd").value=($("nd").value+"\n"+r.data.texto).trim()}catch(e){o.textContent="No se pudo calcular. Escribí qué comiste y guardalo igual."}}
-function runPreset(){DT="Día de running";DRAFT=[["Entrada en calor","Caminata rápida","5 min"],["Principal","Trote suave","20 min"],["Vuelta a la calma","Caminata suave","5 min"],["Vuelta a la calma","Estiramiento de cuádriceps","30 s"],["Vuelta a la calma","Estiramiento de isquios","30 s"]].map(a=>({bloque:a[0],nombre:a[1],detalle:a[2],video:"",plano:""}));draw()}
+function runPreset(){DT="Día de running";DRAFT=[["Activación","Caminata rápida","5 min"],["Principal","Trote suave","20 min"],["Vuelta a la calma","Caminata suave","5 min"],["Vuelta a la calma","Estiramiento de cuádriceps","30 s"],["Vuelta a la calma","Estiramiento de isquios","30 s"]].map(a=>({bloque:a[0],nombre:a[1],detalle:a[2],video:"",plano:""}));draw()}
 var TF=[["tp","Preparar",10],["tw","Trabajo",20],["tr","Descanso",10],["tc","Ciclos",8],["ts","Series",1],["tg","Descanso entre series",60]];
 function tv(i){return Math.max(0,+$(i).value||0)}
 function ts_(i,d){$(i).value=Math.max(0,tv(i)+d*(i=="tg"?5:1));tInfo()}
@@ -271,13 +239,145 @@ function linksH(){
  var b=(t,u)=>u?'<a href="'+esc(u)+'" target="_blank"><button class="w">'+t+'</button></a>':"",w=CFG.wa_coach?"https://wa.me/"+String(CFG.wa_coach).replace(/\D/g,""):"",
  h=b("📸 Instagram",lnk(CFG.ig_coach,1))+b("💬 Contacto por WhatsApp",w)+b("🛒 Tienda de suplementos",lnk(CFG.tienda_coach));
  return h?'<div class="card"><b class="tt" style="font-size:24px">Mi coach</b>'+h+'</div>':""}
-function datosH(c){
- if(!(c.edad&&c.peso&&c.altura))return fichaCli(c);
- var O={deficit:"Déficit",mantener:"Mantener",superavit:"Superávit"},r=(a,b)=>'<div class="row" style="padding:8px 0;border-top:1px solid var(--bd)"><span class="mut">'+a+'</span><b style="text-align:right">'+esc(b||"—")+'</b></div>';
- return DP("datos","📋 Mis datos",'<div class="card">'+r("Sexo",c.sexo)+r("Edad",c.edad)+r("Peso",c.peso+" kg")+r("Altura",c.altura+" cm")+r("Días por semana",c.dias)+r("Objetivo calórico",O[c.obj])+r("Entrenaste antes",c.entreno)+r("Lesiones",c.lesiones)+r("WhatsApp",c.telefono)+'<p class="mut">Si algo cambió, pedíselo a tu coach.</p></div>')}
-function cfgH(){return '<div class="card"><b>Mis enlaces (los ve el cliente en “Más”)</b><label>Instagram (usuario o link)</label><input id="cg1" value="'+esc(CFG.ig_coach)+'"><label>WhatsApp con código de país</label><input id="cg2" inputmode="numeric" value="'+esc(CFG.wa_coach)+'"><label>Tienda de suplementos (link)</label><input id="cg3" value="'+esc(CFG.tienda_coach)+'"><button class="p w" onclick="saveCfg()">Guardar enlaces</button></div>'}
-async function saveCfg(){var r=await sb.from("config").upsert([["ig_coach","cg1"],["wa_coach","cg2"],["tienda_coach","cg3"]].map(a=>({clave:a[0],valor:$(a[1]).value.trim()})));if(r.error){alert(r.error.message);return}await loadList();draw();alert("Enlaces guardados.")}
+var MOM=["Desayuno","Almuerzo","Merienda","Cena","Snack"],SOL=[],MIA=null;
+function nb(b){return b==="Entrada en calor"?"Activación":b}
+function chartW(w){if(w.length<2)return"";var ys=w.map(p=>+p.kg),mn=Math.min.apply(0,ys)-1,mx=Math.max.apply(0,ys)+1,pt=w.map((p,i)=>[10+i*280/(w.length-1),110-(p.kg-mn)/(mx-mn)*100]);return '<svg viewBox="0 0 300 120" style="width:100%"><polyline fill="none" stroke="var(--pri)" stroke-width="3" points="'+pt.map(a=>a.join(",")).join(" ")+'"/>'+pt.map(a=>'<circle cx="'+a[0]+'" cy="'+a[1]+'" r="4" fill="var(--pri)"/>').join("")+'</svg>'}
+function pesoH(){
+ var w=CUR.w,h="";
+ if(w.length){var d=(w[w.length-1].kg-w[0].kg).toFixed(1);h+='<p><b>'+w[w.length-1].kg+' kg</b> · cambio desde el inicio: '+(d>0?"+":"")+d+' kg</p>'+chartW(w);w.slice(-6).reverse().forEach(p=>h+='<div class="mut">'+fmt(p.fecha)+': '+p.kg+' kg</div>')}
+ if(coach())return h||'<p class="mut">Todavía no cargó su peso.</p>';
+ var m=hoy().slice(0,7);
+ return h+(w.some(p=>String(p.fecha).slice(0,10)>=ymd(new Date(Date.now()-6*864e5)))?'<p class="mut">Ya anotaste tu peso esta semana. Podés volver a anotarlo en unos días.</p>':'<div class="row"><input type="number" inputmode="decimal" id="pk" placeholder="Peso en kg"><button class="p" onclick="addP()">Anotar</button></div>')}
+function nuCliH(){
+ var t=hoy(),l=CUR.nu.filter(x=>!x.fecha||x.fecha==t).sort((a,b)=>MOM.indexOf(a.momento)-MOM.indexOf(b.momento));
+ if(!l.length)return '<div class="card mut">Tu coach todavía no te cargó la alimentación de hoy.</div><h2>Lo que comí</h2>';
+ var k=l.reduce((s,x)=>s+(+x.kcal||0),0);
+ return '<h2>Mi plan de hoy</h2>'+l.map(x=>'<div class="card"><div class="row"><b>'+esc(x.momento)+'</b>'+(x.kcal?'<span class="mut">~'+x.kcal+' kcal</span>':'')+'</div><div>'+esc(x.descripcion)+'</div></div>').join("")+(k?'<p class="mut">Total aprox.: '+k+' kcal</p>':"")+'<h2>Lo que comí</h2>'}
+function nuCoachH(){
+ var h='<div class="card"><b>Plan de comidas</b><p class="mut">Sin fecha = se repite todos los días.</p><label>Momento</label><select id="um">'+opts(MOM,"Desayuno")+'</select><label>Comida</label><textarea id="ud" rows="2"></textarea><div class="g2"><div><label>Kcal (opcional)</label><input id="uk" type="number" inputmode="numeric"></div><div><label>Fecha (opcional)</label><input id="uf" type="date"></div></div><button class="p w" onclick="addNu()">+ Agregar al plan</button></div>';
+ CUR.nu.forEach(x=>h+='<div class="row mut" style="margin:6px 0"><span>'+(x.fecha?fmt(x.fecha):"Todos los días")+' · '+esc(x.momento)+': '+esc(x.descripcion)+(x.kcal?' ('+x.kcal+' kcal)':"")+'</span><button onclick="delNu(\''+x.id+'\')">✕</button></div>');
+ return h+'<h2>Comidas que registró</h2>'}
+async function addNu(){var d=$("ud").value.trim();if(!d)return;var r=await sb.from("plan_nutri").insert({cliente_id:CUR.c.id,momento:$("um").value,descripcion:d,kcal:parseInt($("uk").value)||null,fecha:$("uf").value||null});if(r.error){alert(r.error.message);return}await loadCur(CUR.c.id);draw()}
+async function delNu(i){await sb.from("plan_nutri").delete().eq("id",i);await loadCur(CUR.c.id);draw()}
+async function loadSol(){var r=await sb.from("solicitudes").select("*").eq("estado","pendiente").order("creado");SOL=r.data||[]}
+async function loadSolMia(){var r=await sb.from("solicitudes").select("*").limit(1);MIA=r.data&&r.data[0]||null}
+function solH(){
+ if(!SOL.length)return"";
+ return '<h2>Solicitudes nuevas ('+SOL.length+')</h2>'+SOL.map(s=>'<div class="card"><b>'+esc(s.nombre)+'</b><div class="mut">'+esc(s.email)+' · '+esc(s.telefono)+'</div><div class="mut">'+esc(s.sexo)+', '+esc(s.edad)+' años, '+esc(s.peso)+' kg, '+esc(s.altura)+' cm · '+esc(s.dias)+' días/sem · '+esc(s.obj)+'</div><div class="mut">Objetivo: '+esc(s.objetivo)+'</div>'+(s.entreno?'<div class="mut">Entrenó antes: '+esc(s.entreno)+'</div>':'')+(s.lesiones?'<div class="bad">Lesiones: '+esc(s.lesiones)+'</div>':'')+'<div class="g2"><button class="p" onclick="aceptar(\''+s.user_id+'\')">Aceptar</button><button onclick="rechazar(\''+s.user_id+'\')">Rechazar</button></div></div>').join("")}
+async function aceptar(id){
+ var s=SOL.find(x=>x.user_id==id),r=await sb.from("clientes").insert({nombre:s.nombre,email:s.email.toLowerCase(),objetivo:s.objetivo,sexo:s.sexo,edad:s.edad,peso:s.peso,altura:s.altura,dias:s.dias,obj:s.obj,lesiones:s.lesiones,entreno:s.entreno,telefono:s.telefono}).select("id").single();
+ if(r.error){alert(r.error.message);return}
+ if(s.peso)await sb.from("pesos").insert({cliente_id:r.data.id,kg:s.peso});
+ await sb.from("solicitudes").update({estado:"aprobada"}).eq("user_id",id);await loadList();draw()}
+async function rechazar(id){if(!confirm("¿Rechazar esta solicitud?"))return;await sb.from("solicitudes").update({estado:"rechazada"}).eq("user_id",id);await loadSol();draw()}
+function vSin(){
+ var h='<h1>Mi Coach</h1>';
+ if(MIA&&MIA.estado=="pendiente")return h+'<div class="card"><b>Solicitud enviada</b><p>Tu coach tiene que aceptarla. Cuando lo haga, tocá “Revisar”.</p><button class="p w" onclick="init()">Revisar</button><button class="w" onclick="salir()">Salir</button></div>';
+ if(MIA&&MIA.estado=="rechazada")return h+'<div class="card"><b class="bad">Tu solicitud no fue aceptada</b><p>Hablá con tu coach si creés que es un error.</p><button class="w" onclick="salir()">Salir</button></div>';
+ return h+'<div class="card"><b>Completá tus datos para que tu coach te acepte</b><label>Nombre y apellido</label><input id="sn"><div class="g2"><div><label>Sexo</label><select id="sx">'+opts(["mujer","hombre"],"mujer")+'</select></div><div><label>Edad</label><input id="se" type="number" inputmode="numeric"></div><div><label>Peso (kg)</label><input id="sp" type="number" inputmode="decimal"></div><div><label>Altura (cm)</label><input id="sa" type="number" inputmode="numeric"></div><div><label>Días por semana</label><input id="sd" type="number" inputmode="numeric"></div><div><label>Objetivo calórico</label><select id="so"><option value="deficit">Déficit</option><option value="mantener">Mantener</option><option value="superavit">Superávit</option></select></div></div><label>Tu objetivo (ej: tonificar)</label><input id="sg"><label>¿Entrenaste antes?</label><textarea id="sen" rows="2"></textarea><label>Lesiones o patologías</label><textarea id="sl" rows="2"></textarea><label>WhatsApp con código de país</label><input id="st" type="tel" inputmode="numeric"><button class="p w" onclick="enviarSol()">Enviar solicitud</button><button class="w" onclick="salir()">Salir</button></div>'}
+async function enviarSol(){
+ var n=x=>{var v=parseFloat($(x).value);return isNaN(v)?null:v},u=(await sb.auth.getUser()).data.user,nom=$("sn").value.trim();
+ if(!nom||!n("se")||!n("sp")||!n("sa")){alert("Completá nombre, edad, peso y altura.");return}
+ var r=await sb.from("solicitudes").upsert({user_id:u.id,email:u.email,nombre:nom,sexo:$("sx").value,edad:n("se"),peso:n("sp"),altura:n("sa"),dias:n("sd"),obj:$("so").value,objetivo:$("sg").value.trim(),entreno:$("sen").value,lesiones:$("sl").value,telefono:$("st").value.trim(),estado:"pendiente"});
+ if(r.error){alert(r.error.message);return}await loadSolMia();draw()}
 
+var ZON=["Tren superior","Tren inferior","Core","Activación","Vuelta a la calma"],ZS="",XQ="",XD="",XS={};
+function zonasH(){return '<input placeholder="🔍 Buscar ejercicio" value="'+esc(XQ)+'" oninput="XQ=this.value;zl()"><div class="g2" style="margin:8px 0">'+ZON.map(z=>'<button class="'+(ZS==z?"p":"")+'" onclick="zona(\''+z+'\')">'+z+'</button>').join("")+'</div><div id="zl"></div>'}
+function zona(z){ZS=ZS==z?"":z;if(ZS=="Core"||ZS=="Activación"||ZS=="Vuelta a la calma")DB=ZS;else if(ZS&&DB!="Principal"&&DB!="Secundario")DB="Principal";draw()}
+async function setZ(i,v){if(!v)return;var r=await sb.from("ejercicios").update({grupo:v}).eq("id",i);if(r.error){alert(r.error.message);return}await loadList();draw()}
+
+function frase(){var a=String(CFG.frase_coach||"").split("\n").map(x=>x.trim()).filter(Boolean),L=a.length?a:FR;return L[Math.floor((Date.now()-new Date().getTimezoneOffset()*6e4)/864e5)%L.length]}
+function motH(){var im=/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/.test(CFG.imagen_coach||"")?CFG.imagen_coach:"";return '<div class="card mot"'+(im?' style="background:linear-gradient(rgba(0,0,0,.45),rgba(0,0,0,.45)),url('+im+') center/cover;color:#fff"':'')+'>“'+esc(frase())+'”</div>'}
+function fotoMesH(){var m=hoy().slice(0,7);return CUR.adj.some(a=>/mensual|progreso/i.test(a.tipo)&&String(a.creado).slice(0,7)==m)?"":'<div class="card"><b>📸 Foto de progreso del mes</b><p class="mut">Este mes todavía no subiste tu foto. Subila para que tu coach vea cómo venís.</p><button class="p w" onclick="TAB=\'prog\';leave();draw();scrollTo(0,0)">Subir foto</button></div>'}
+function zl(){
+ var q=XQ.toLowerCase(),l=LIB.filter(e=>q?e.nombre.toLowerCase().indexOf(q)>=0:(e.grupo||"")==ZS),ks=Object.keys(XS),h=(!q&&!ZS)?'<p class="mut">Tocá una categoría para ver sus ejercicios.</p>':l.length?l.map(e=>'<label class="item" style="font-size:17px;color:var(--tx)"><input type="checkbox" '+(e.id in XS?"checked":"")+' onchange="xt(\''+e.id+'\',this.checked)"><span>'+esc(e.nombre)+(q&&e.grupo?' <span class="tag mut">'+esc(e.grupo)+'</span>':"")+'</span></label>').join(""):'<p class="mut">No hay ejercicios en esta categoría. Cargalos en la biblioteca.</p>';
+ if(ks.length)h+='<b>Marcados ('+ks.length+')</b>'+ks.map(i=>{var e=LIB.find(z=>z.id==i);return e?'<div style="margin:8px 0"><span>'+esc(e.nombre)+'</span><input placeholder="Series y reps (ej: 3x12 con 10 kg)" value="'+esc(XS[i])+'" oninput="XS[\''+i+'\']=this.value"></div>':""}).join("");
+ $("zl").innerHTML=h}
+function xt(i,c){if(c)XS[i]="";else delete XS[i];zl()}
+function addX(){
+ var ids=Object.keys(XS);if(!ids.length){alert("Marcá al menos un ejercicio.");return}
+ ids.forEach(i=>{var e=LIB.find(z=>z.id==i);if(e)DRAFT.push({bloque:DB,nombre:e.nombre,detalle:String(XS[i]).trim(),video:e.video||"",plano:e.plano||""})});XS={};draw()}
+function pagoH(c){return(c.pagado?'<p>'+(c.vence?'Pagado hasta <b>'+fmt(c.vence)+'</b>':'Pago registrado sin vencimiento.')+'</p>':'')+'<label>Período</label><select id="pm"><option value="1">1 mes</option><option value="2">2 meses</option><option value="3">3 meses</option><option value="6">6 meses</option><option value="0">Sin vencimiento</option></select><button class="p w" onclick="pagar()">'+(c.pagado?"Registrar renovación":"Marcar como pagó")+'</button>'+(c.pagado?'<button class="w" onclick="setF(\'pagado\',false)">Marcar como NO pagó</button>':'')}
+async function pagoRapido(id){var c=LIST.find(function(x){return x.id==id});if(!c)return;var d=c.vence&&c.vence>hoy()?new Date(c.vence+"T12:00"):new Date();d.setMonth(d.getMonth()+1);var v=ymd(d),r=await sb.from("clientes").update({pagado:true,vence:v}).eq("id",id);if(r.error){alert(r.error.message);return}c.pagado=true;c.vence=v;draw()}
+async function pagar(){
+ var m=+$("pm").value,c=CUR.c,v=null;
+ if(m){var d=c.vence&&c.vence>hoy()?new Date(c.vence+"T12:00"):new Date();d.setMonth(d.getMonth()+m);v=ymd(d)}
+ var r=await sb.from("clientes").update({pagado:true,vence:v}).eq("id",c.id);if(r.error){alert(r.error.message);return}c.pagado=true;c.vence=v;draw()}
+var CALM=false,AN=new Date();
+function ymd(d){return d.getFullYear()+"-"+p2(d.getMonth()+1)+"-"+p2(d.getDate())}
+function mes(n){AN=CALM?new Date(AN.getFullYear(),AN.getMonth()+n,1):new Date(AN.getFullYear(),AN.getMonth(),AN.getDate()+7*n);redraw()}
+function calH(){
+ var hs={};CUR.p.forEach(d=>hs[d.fecha]=1);
+ var b=f=>'<button class="'+(f==SEL?"on":"")+'" onclick="SEL=\''+f+'\';redraw()">'+(+f.slice(8))+(hs[f]?'<i class="dot"></i>':"")+'</button>',
+ h='<div class="row"><button onclick="mes(-1)">‹</button><button style="border:0;background:none;font-size:22px" onclick="CALM=!CALM;redraw()">📅 '+AN.toLocaleDateString("es",{month:"long",year:"numeric"})+'</button><button onclick="mes(1)">›</button></div><div class="cal" style="margin-top:10px">'+"LMXJVSD".split("").map(l=>'<span class="mut">'+l+'</span>').join("");
+ if(CALM){var y=AN.getFullYear(),mo=AN.getMonth(),off=(new Date(y,mo,1).getDay()+6)%7,nd=new Date(y,mo+1,0).getDate();h+="<span></span>".repeat(off);for(var i=1;i<=nd;i++)h+=b(y+"-"+p2(mo+1)+"-"+p2(i))}
+ else{var a=AN.getDate()-((AN.getDay()+6)%7);for(var i=0;i<7;i++)h+=b(ymd(new Date(AN.getFullYear(),AN.getMonth(),a+i)))}
+ return h+'</div><p class="mut" style="text-align:center;margin:6px 0 0">'+(CALM?"Tocá el título para ver solo la semana":"Tocá 📅 para ver todo el mes")+'</p>'}
+function cfgH(){return '<div class="card"><b>Mis enlaces (los ve el cliente en “Más”)</b><label>Instagram (usuario o link)</label><input id="cg1" value="'+esc(CFG.ig_coach)+'"><label>WhatsApp con código de país</label><input id="cg2" inputmode="numeric" value="'+esc(CFG.wa_coach)+'"><label>Tienda de suplementos (link)</label><input id="cg3" value="'+esc(CFG.tienda_coach)+'"><label>Frases de motivación (una por línea; vacío = uso las de la app)</label><textarea id="cg4" rows="4">'+esc(CFG.frase_coach)+'</textarea><button class="p w" onclick="saveCfg()">Guardar enlaces y frases</button><label>Imagen del cartel de motivación</label><input id="cgi" type="file" accept="image/*"><button class="w" onclick="saveImg()">Guardar imagen</button>'+(CFG.imagen_coach?'<button class="w" onclick="quitImg()">Quitar imagen</button>':"")+'<p class="mut">Así lo ve tu cliente:</p>'+motH()+'</div>'}
+async function saveCfg(){var r=await sb.from("config").upsert([["ig_coach","cg1"],["wa_coach","cg2"],["tienda_coach","cg3"],["frase_coach","cg4"]].map(a=>({clave:a[0],valor:$(a[1]).value.trim()})));if(r.error){alert(r.error.message);return}await loadList();draw();alert("Guardado.")}
+async function saveImg(){
+ var f=$("cgi").files[0];if(!f){alert("Elegí una imagen.");return}
+ var d=await new Promise((ok,no)=>{var i=new Image();i.onload=()=>{var k=Math.min(1,700/i.width),c=document.createElement("canvas");c.width=i.width*k;c.height=i.height*k;c.getContext("2d").drawImage(i,0,0,c.width,c.height);ok(c.toDataURL("image/jpeg",.6))};i.onerror=no;i.src=URL.createObjectURL(f)});
+ var r=await sb.from("config").upsert({clave:"imagen_coach",valor:d});if(r.error){alert(r.error.message);return}await loadList();draw()}
+async function quitImg(){await sb.from("config").upsert({clave:"imagen_coach",valor:""});await loadList();draw()}
+
+function vPdf(){
+ var c=CUR.c,m=macros(c),h='<div class="noimp"><button onclick="go(\'cli\')">← Volver</button><button class="p w" onclick="window.print()">⬇ Guardar como PDF</button><p class="mut">Se abre la impresión: elegí “Guardar como PDF”. Así tenés tu rutina sin internet.</p></div><h1>Mi rutina · '+esc(c.nombre)+'</h1>';
+ if(m)h+='<div class="card"><b>Mi objetivo diario</b><p>'+m.k+' kcal · Proteínas '+m.P+' g · Carbohidratos '+m.C+' g · Grasas '+m.G+' g</p></div>';
+ if(!CUR.p.length)h+='<p class="mut">Todavía no tenés días de entrenamiento cargados.</p>';
+ CUR.p.forEach(function(d){h+='<div class="card"><b class="tt" style="font-size:22px">'+fmt(d.fecha)+' · '+esc(d.titulo)+'</b>';
+  BLOQ.forEach(function(b){var g=d.items.filter(function(x){return nb(typeof x==="object"?x.bloque:"Principal")===b});if(!g.length)return;h+='<div class="mut" style="margin-top:8px"><b>'+b+'</b></div>'+g.map(function(x){return '<div>☐ '+esc(itemTxt(x))+'</div>'}).join("")});
+  h+='</div>'});
+ return h}
+function macros(c){var k=kcal(c);if(!k)return null;var G=Math.round(.25*k.k/9);return{k:k.k,P:k.p,G:G,C:Math.max(0,Math.round((k.k-k.p*4-G*9)/4))}}
+function macH(c){
+ var m=macros(c);if(!m)return"";
+ var O={deficit:"Vas a comer un poco menos de lo que tu cuerpo gasta: ideal para bajar grasa de a poco.",mantener:"Vas a comer lo mismo que tu cuerpo gasta: ideal para mantener tu peso mientras mejorás tu composición corporal.",superavit:"Vas a comer un poco más de lo que tu cuerpo gasta: ideal para ganar masa muscular."},
+ t=m.P*4+m.G*9+m.C*4,r=[["Proteínas",m.P,4,"var(--ok)"],["Grasas",m.G,9,"#ffb86b"],["Carbohidratos",m.C,4,"var(--pri)"]];
+ return '<div class="card"><b class="tt" style="font-size:26px">Tus macros</b><div class="mut">Objetivo diario</div><div class="card" style="text-align:center"><span class="mut">Calorías </span><b class="tt" style="font-size:48px">'+m.k+'</b></div><p class="mut">'+(O[c.obj]||"")+'</p>'+
+ r.map(function(x){var kc=x[1]*x[2],pc=Math.round(kc/t*100);return '<div style="margin:12px 0"><div class="row"><b>'+x[0]+'</b><b>'+x[1]+' g</b></div><div class="mut">'+kc+' kcal · '+pc+'% del total</div><div style="height:8px;border-radius:9px;background:var(--bd);margin-top:6px"><div style="height:8px;border-radius:9px;width:'+pc+'%;background:'+x[3]+'"></div></div></div>'}).join("")+
+ '<p class="mut">Estimación con la fórmula Mifflin-St Jeor. Es orientativa y no reemplaza a un profesional de la nutrición.</p></div>'}
+var RF="",RC=[
+["Desayuno","Tostadas con huevo y palta",398,20,30,22,"2 huevos, 2 rebanadas de pan integral, ¼ de palta","Hacé los huevos a la plancha y servilos sobre las tostadas con la palta pisada."],
+["Desayuno","Yogur griego con avena y banana",383,22,58,7,"200 g de yogur griego, 40 g de avena, 1 banana","Mezclá todo en un bowl y sumá canela."],
+["Desayuno","Panqueques de avena y banana",356,17,45,12,"1 banana, 2 huevos, 40 g de avena","Procesá todo y cociná en sartén antiadherente 2 minutos de cada lado."],
+["Desayuno","Omelette de espinaca y queso",328,25,3,24,"3 huevos, un puñado de espinaca, 30 g de queso","Salteá la espinaca, sumá los huevos batidos y el queso, doblá y cociná 3 minutos."],
+["Almuerzo","Pollo con arroz y ensalada",480,45,48,12,"150 g de pechuga, 150 g de arroz cocido, ensalada, 1 cda de aceite","Cociná el pollo a la plancha y serví con el arroz y la ensalada aliñada."],
+["Almuerzo","Milanesas de pollo al horno con puré de calabaza",454,42,40,14,"200 g de pechuga, 1 huevo, pan rallado, 250 g de calabaza","Pasá el pollo por huevo y pan rallado, horno 20 minutos; hervir y pisar la calabaza."],
+["Almuerzo","Bife magro con papas al horno",454,38,44,14,"150 g de bife, 200 g de papa, 1 cda de aceite, romero","Horneá las papas con aceite y romero 30 minutos y hacé el bife a la plancha."],
+["Almuerzo","Ensalada de lentejas con atún y huevo",432,36,45,12,"150 g de lentejas cocidas, 1 lata de atún, 1 huevo duro, tomate, cebolla","Mezclá todo y aliñá con limón y aceite de oliva."],
+["Merienda","Licuado de banana y proteína",326,30,38,6,"1 banana, 1 scoop de proteína, 250 ml de leche descremada","Licuá todo con hielo."],
+["Merienda","Tostada con queso untable y pavo",232,16,24,8,"2 rebanadas de pan integral, 2 cdas de queso untable light, 3 fetas de pavo","Untá el pan y sumá el pavo."],
+["Merienda","Barritas de avena y manzana",223,8,32,7,"1 manzana rallada, 60 g de avena, 1 huevo, canela","Mezclá, armá barritas y horno 20 minutos a 180 grados."],
+["Cena","Tortilla de verduras",356,22,22,20,"3 huevos, 1 papa chica, zapallito, cebolla","Salteá las verduras, sumá los huevos y cociná de ambos lados."],
+["Cena","Merluza al horno con calabaza",380,38,30,12,"180 g de merluza, 250 g de calabaza, 1 cda de aceite, limón","Horneá la calabaza 25 minutos y sumá el pescado los últimos 12."],
+["Cena","Wok de pollo y verduras con arroz",418,40,42,10,"150 g de pollo, verduras surtidas, 120 g de arroz cocido, salsa de soja","Salteá el pollo en tiras, sumá las verduras y la soja, serví sobre el arroz."],
+["Cena","Sopa crema de zapallo con huevo",348,20,40,12,"300 g de zapallo, 1 huevo duro, 1 tostada, cebolla","Herví el zapallo con la cebolla, procesá y serví con el huevo picado."],
+["Snack","Frutos secos y una fruta",238,6,22,14,"20 g de frutos secos, 1 manzana o 1 mandarina","Comé todo junto."]];
+function recetasH(){
+ var l=RC.filter(function(r){return!RF||r[0]===RF}),
+ h='<div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0">'+[""].concat(MOM).map(function(m){return '<button class="'+(RF===m?"p":"")+'" style="min-height:38px;padding:0 12px" onclick="RF=\''+m+'\';redraw()">'+(m||"Todas")+'</button>'}).join("")+'</div><p class="mut">'+l.length+' recetas · valores aproximados por porción</p>'+
+ l.map(function(r){return '<details class="card"><summary style="cursor:pointer"><span class="mut">'+r[0]+'</span><br><b>'+r[1]+'</b><div class="mut">'+r[2]+' kcal · P '+r[3]+' g · C '+r[4]+' g · G '+r[5]+' g</div></summary><p><b>Ingredientes:</b> '+r[6]+'</p><p><b>Preparación:</b> '+r[7]+'</p></details>'}).join("");
+ return DP("rec","🍳 Recetas ("+RC.length+")",h)}
+
+function redraw(){var S={},y=scrollY;document.querySelectorAll("#app input[id],#app textarea[id],#app select[id]").forEach(function(e){if(e.type!=="file")S[e.id]=e.value});draw();Object.keys(S).forEach(function(k){var e=$(k);if(e&&e.type!=="file"&&S[k]!=="")e.value=S[k]});scrollTo(0,y)}
+function datosH(c){var f=fichaCli(c);return(c.edad&&c.peso&&c.altura)?DP("datos","📋 Mis datos",f):f}
+function regH(){var g={};CUR.reg.forEach(function(r){(g[r.ejercicio]=g[r.ejercicio]||[]).push(r)});var k=Object.keys(g);return k.length?k.map(function(e){var a=g[e],f=a[0],l=a[a.length-1],mx=Math.max.apply(null,a.map(function(r){return+r.kg||0}));return '<div class="card"><b>'+esc(e)+'</b><div class="mut">Primero: '+f.kg+' kg × '+f.reps+' · Último: '+l.kg+' kg × '+l.reps+' · Máximo: '+mx+' kg</div></div>'}).join(""):'<p class="mut">Todavía no hay marcas anotadas.</p>'}
+function markH(d,x,i){if(typeof x!=="object"||["Principal","Secundario"].indexOf(nb(x.bloque))<0)return"";var u=CUR.reg.filter(function(r){return r.ejercicio==x.nombre}).pop(),k=d.id+"_"+i;return '<div style="margin:0 0 8px 36px"><div class="row" style="gap:6px"><input id="rr'+k+'" type="number" inputmode="numeric" placeholder="Reps"><input id="rk'+k+'" type="number" inputmode="decimal" placeholder="Kg"><button onclick="anotar(\''+d.id+'\','+i+')">✓</button></div>'+(u?'<div class="mut">Última vez: '+u.kg+' kg × '+u.reps+'</div>':"")+'</div>'}
+async function anotar(did,i){var d=CUR.p.find(function(z){return z.id===did}),x=d.items[i],k=did+"_"+i,r=parseInt($("rr"+k).value),w=parseFloat($("rk"+k).value);if(isNaN(r)||isNaN(w)){alert("Completá reps y kg.");return}var q=await sb.from("registros").insert({cliente_id:CUR.c.id,ejercicio:x.nombre,kg:w,reps:r});if(q.error){alert(q.error.message);return}$("rr"+k).value="";$("rk"+k).value="";await loadCur(CUR.c.id);redraw()}
+async function copiarD(id){var d=CUR.p.find(function(z){return z.id===id}),f=$("cp"+id).value;if(!f){alert("Elegí la fecha.");return}var r=await sb.from("plan_dias").insert({cliente_id:CUR.c.id,fecha:f,titulo:d.titulo,items:d.items});if(r.error){alert(r.error.message);return}await loadCur(CUR.c.id);draw()}
+function cumpH(){var a=ymd(new Date(Date.now()-6*864e5)),t=hoy(),n=0,h=0;CUR.p.forEach(function(d){if(d.fecha>=a&&d.fecha<=t){n+=d.items.length;h+=Object.values(d.hecho||{}).filter(Boolean).length}});return n?'<div class="card"><div class="row"><b>Cumplimiento (últimos 7 días)</b><b class="tt" style="font-size:26px">'+Math.round(h/n*100)+'%</b></div><div class="mut">'+h+' de '+n+' ejercicios hechos</div></div>':""}
+var MS=0;
+function por(p){return String(p).replace(".5","½").replace(/^0½/,"½")}
+function menuH(c){
+ var m=macros(c);if(!m)return"";
+ var d=Math.floor(Date.now()/864e5)+MS,SH={Desayuno:.25,Almuerzo:.35,Merienda:.15,Cena:.25},T=[0,0,0,0],h="";
+ Object.keys(SH).forEach(function(mo){var l=RC.filter(function(r){return r[0]===mo}),r=l[d%l.length],pt=Math.max(.5,Math.round(SH[mo]*m.k/r[2]*2)/2);
+  for(var j=0;j<4;j++)T[j]+=r[j+2]*pt;
+  h+='<div class="card"><span class="mut">'+mo+' · '+por(pt)+(pt==1?" porción":" porciones")+'</span><br><b>'+r[1]+'</b><div class="mut">'+Math.round(r[2]*pt)+' kcal · P '+Math.round(r[3]*pt)+' g · C '+Math.round(r[4]*pt)+' g · G '+Math.round(r[5]*pt)+' g</div></div>'});
+ return DP("menu","🍽 Tu menú del día",'<p class="mut">Armado con las recetas de la app para acercarse a tus '+m.k+' kcal y '+m.P+' g de proteína. Total: '+Math.round(T[0])+' kcal · P '+Math.round(T[1])+' g · C '+Math.round(T[2])+' g · G '+Math.round(T[3])+' g.</p>'+h+'<button class="w" onclick="MS++;redraw()">🔄 Ver otras opciones</button>')}
+
+if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(function(){});
 init();
 </script>
 </body>
