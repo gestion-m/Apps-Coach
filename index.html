@@ -43,6 +43,7 @@ nav button.on{color:var(--pri);box-shadow:inset 0 3px var(--pri)}
 .st{display:flex;align-items:center;gap:10px}.st button{width:52px;border-radius:99px;font-size:26px;padding:0}.st input{text-align:center;font-size:26px}
 .mot{min-height:270px;display:flex;align-items:center;font-size:36px;line-height:1.15;padding:28px;border-radius:22px;position:relative;overflow:hidden;font-family:'Barlow Condensed','Arial Narrow',sans-serif;font-weight:700}
 .mot:before{content:"\201C";position:absolute;right:16px;top:-40px;font-size:220px;opacity:.2;font-family:Georgia,serif}
+.meal{display:flex;gap:12px;align-items:center}.mf{width:84px;height:84px;border-radius:12px;object-fit:cover;flex:none;background:var(--bg)}.ph{display:flex;align-items:center;justify-content:center;font-size:30px}
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
 </head>
@@ -86,7 +87,7 @@ function draw(){
  var h="";
  if(V==="login")h=vLogin();else if(V==="sinacceso")h=vSin();else if(V==="lista")h=vLista();else if(V==="nuevo")h=vNuevo();else if(V==="det")h=vDet();else if(V==="cli")h=vCli();else if(V==="tab")h=vTab();else if(V==="pdf")h=vPdf();
  $("app").innerHTML=h;
- if($("tinfo"))tInfo();if($("zl"))zl()}
+ if($("tinfo"))tInfo();if($("zl"))zl();imgs()}
 function vLogin(){return '<h1>Mi Coach</h1><div class="card"><label>Mail</label><input id="em" type="email" autocomplete="email"><label>Contraseña (mínimo 6 caracteres)</label><input id="pw" type="password" autocomplete="current-password">'+(MSG?'<p class="bad">'+esc(MSG)+'</p>':'')+'<button class="p w" onclick="login(false)">Entrar</button><button class="w" onclick="login(true)">Crear cuenta</button><p class="mut">Si sos cliente, creá tu cuenta y completá tus datos: tu coach te va a aceptar.</p></div>'}
 function vLista(){
  var h='<div class="row"><h1>Mis clientes</h1><button onclick="salir()">Salir</button></div><button class="w" onclick="go(\'tab\')">⏱ Temporizador Tabata</button>'+solH()+cfgH();
@@ -114,14 +115,14 @@ var BLOQ=["Activación","Core","Principal","Secundario","Vuelta a la calma"],PLA
 function itemTxt(x){return typeof x==="string"?x:x.nombre+(x.detalle?" — "+x.detalle:"")}
 function opts(a,v){return a.map(function(o){return '<option'+(o===v?" selected":"")+'>'+o+'</option>'}).join("")}
 function armarH(){
- var ops=LIB.filter(function(e){return e.bloque===DB}),h='<div class="card"><b>Armar día de entrenamiento</b><button class="w" onclick="runPreset()">🏃 Cargar día de running</button>'+plH()+'<label>Fecha</label><input type="date" value="'+DF+'" onchange="DF=this.value"><label>Título</label><input value="'+esc(DT)+'" onchange="DT=this.value" placeholder="Ej: Tren inferior"><label>Bloque</label><select onchange="DB=this.value;redraw()">'+opts(BLOQ,DB)+'</select><label>Ejercicio de tu biblioteca</label>'+zonasH()+'<button class="w" onclick="addX()">+ Agregar marcados al día</button>';
+ var h='<div class="card"><b>Armar día de entrenamiento</b><button class="w" onclick="runPreset()">🏃 Cargar día de running</button>'+plH()+'<label>Fecha</label><input type="date" value="'+DF+'" onchange="DF=this.value"><label>¿Qué toca hoy?</label>'+zonasH()+'<button class="w" onclick="addX()">+ Agregar marcados al día</button>';
  DRAFT.forEach(function(x,i){h+='<div class="row mut" style="margin-top:6px"><span>'+esc(x.bloque+": "+itemTxt(x))+'</span><button onclick="DRAFT.splice('+i+',1);draw()">✕</button></div>'});
- return h+'<button class="p w" onclick="addD()">Guardar día como borrador</button></div>'+libH()}
+ return h+((DT||ZS)?'<p class="mut">Título del día: <b>'+esc(DT||ZS)+'</b></p>':'')+'<button class="p w" onclick="addD()">Guardar día como borrador</button></div>'+libH()}
 async function addD(){
- if(!DT.trim()||!DRAFT.length){alert("Poné un título y al menos un ejercicio.");return}
- var r=await sb.from("plan_dias").insert({cliente_id:CUR.c.id,fecha:DF||hoy(),titulo:DT.trim(),items:DRAFT});
+ var T=DT||ZS;if(!T||!DRAFT.length){alert("Elegí qué toca hoy y al menos un ejercicio.");return}
+ var r=await sb.from("plan_dias").insert({cliente_id:CUR.c.id,fecha:DF||hoy(),titulo:T,items:DRAFT});
  if(r.error){alert(r.error.message);return}
- DRAFT=[];DT="";await loadCur(CUR.c.id);draw()}
+ DRAFT=[];DT="";ZS="";await loadCur(CUR.c.id);draw()}
 function libH(){
  var h='<h2>Mi biblioteca de ejercicios</h2><div class="card"><label>Nombre</label><input id="ln"><div class="g2"><div><label>Bloque</label><select id="lb">'+opts(BLOQ,"Principal")+'</select></div><div><label>Plano del video</label><select id="lp">'+opts(PLANOS,"sagital")+'</select></div></div><label>Categoría</label><select id="lz">'+opts(ZON,"Tren superior")+'</select><label>Link del video (YouTube, Drive, etc.)</label><input id="lv" type="url" placeholder="https://"><button class="p w" onclick="addLib()">Guardar ejercicio</button></div>';
  ZON.concat(["Sin categoría"]).forEach(z=>{var l=LIB.filter(e=>(e.grupo||"Sin categoría")==z);if(!l.length)return;h+=DP("lib"+z,z+" ("+l.length+")",l.map(e=>'<div class="row mut" style="margin:6px 0"><span>'+esc(e.nombre)+(e.video?" ▶ "+esc(e.plano||""):"")+'</span>'+(e.grupo?'':'<select style="width:auto" onchange="setZ(\''+e.id+'\',this.value)"><option value="">Categoría…</option>'+ZON.map(o=>'<option>'+o+'</option>').join("")+'</select>')+'<button onclick="delLib(\''+e.id+'\')">✕</button></div>').join(""))});
@@ -139,7 +140,7 @@ function itemsH(d){
   if(!g.length)return;
   h+='<div class="mut" style="margin-top:10px"><b>'+b+'</b></div>';
   g.forEach(function(p){var x=p[0],i=p[1];
-   h+='<label class="item" style="color:var(--tx);font-size:17px"><input type="checkbox" '+(d.hecho[i]?"checked":"")+' onchange="tick(\''+d.id+'\','+i+',this.checked)"><span>'+esc(itemTxt(x))+(x.plano?' <span class="tag mut">'+esc(x.plano)+'</span>':'')+'</span></label>'+(x.video?'<div style="margin:0 0 6px 36px"><button data-v="'+esc(x.video)+'" onclick="vid(this,this.dataset.v)">▶ Ver video (plano '+esc(x.plano||"")+')</button><div></div></div>':'')+markH(d,x,i)})});
+   h+='<div class="row" style="gap:6px"><label class="item" style="flex:1;color:var(--tx);font-size:17px"><input type="checkbox" '+(d.hecho[i]?"checked":"")+' onchange="tick(\''+d.id+'\','+i+',this.checked)"><span>'+esc(itemTxt(x))+(x.plano?' <span class="tag mut">'+esc(x.plano)+'</span>':'')+'</span></label>'+(coach()?"":'<button type="button" title="Cargar lo que hiciste" onclick="this.nextElementSibling.click()">📷</button><input type="file" accept="image/*,video/*" hidden onchange="subirEj(this,\''+d.id+'\','+i+')">')+'</div>'+(x.video?'<div style="margin:0 0 6px 36px"><button data-v="'+esc(x.video)+'" onclick="vid(this,this.dataset.v)">▶ Ver video (plano '+esc(x.plano||"")+')</button><div></div></div>':'')+markH(d,x,i)})});
  return h}
 function fichaCli(c){
  return '<div class="card"><b>Mis datos</b><p class="mut">Completalos para que tu coach pueda armar tu plan. Podés actualizarlos cuando cambien.</p><div class="g2"><div><label>Sexo</label><select id="fs">'+opts(["mujer","hombre"],c.sexo)+'</select></div><div><label>Edad</label><input id="fe" type="number" inputmode="numeric" value="'+esc(c.edad)+'"></div><div><label>Peso (kg)</label><input id="fp" type="number" inputmode="decimal" value="'+esc(c.peso)+'"></div><div><label>Altura (cm)</label><input id="fa" type="number" inputmode="numeric" value="'+esc(c.altura)+'"></div><div><label>Días por semana</label><input id="fd" type="number" inputmode="numeric" value="'+esc(c.dias)+'"></div><div><label>Objetivo calórico</label><select id="fo">'+opts(["deficit","mantener","superavit"],c.obj)+'</select></div></div><label>¿Entrenaste antes? Contá hace cuánto y qué hacías (o escribí "nunca")</label><textarea id="fx" rows="2">'+esc(c.entreno)+'</textarea><label>Lesiones o patologías</label><textarea id="fl" rows="2">'+esc(c.lesiones)+'</textarea><label>Tu WhatsApp con código de país (ej: 5491155551234)</label><input id="ft" type="tel" inputmode="numeric" value="'+esc(c.telefono)+'"><button class="p w" onclick="guardarFicha()">Guardar mis datos</button></div>'}
@@ -169,22 +170,28 @@ function DP(k,t,b){return '<details style="margin:10px 0"'+(OPEN[k]?" open":"")+
 function embed(u){var m=u.match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([\w-]{11})/);if(m)return"https://www.youtube.com/embed/"+m[1];m=u.match(/drive\.google\.com\/file\/d\/([\w-]+)/);if(m)return"https://drive.google.com/file/d/"+m[1]+"/preview";return null}
 function vid(b,u){var x=b.nextElementSibling;if(x.innerHTML){x.innerHTML="";return}var e=embed(u);if(!e){if(/^https?:\/\//i.test(u))window.open(u,"_blank","noopener");return}x.innerHTML='<iframe src="'+e+'" allowfullscreen style="width:100%;aspect-ratio:16/9;border:0;border-radius:10px;margin-top:6px"></iframe>'}
 function coach(){return ROL==="coach"}
-async function subir(f){var e=(f.name.split(".").pop()||"bin").toLowerCase().replace(/[^a-z0-9]/g,"").slice(0,5)||"bin",p=CUR.c.id+"/"+Date.now()+"."+e,r=await sb.storage.from("archivos").upload(p,f,{contentType:f.type});if(r.error){alert(r.error.message);return null}return p}
+function comprimir(f){return new Promise(function(ok){if(!/^image\//.test(f.type))return ok(f);var i=new Image();i.onload=function(){var k=Math.min(1,1280/Math.max(i.width,i.height)),c=document.createElement("canvas");c.width=i.width*k;c.height=i.height*k;c.getContext("2d").drawImage(i,0,0,c.width,c.height);c.toBlob(function(b){ok(b?new File([b],"f.jpg",{type:"image/jpeg"}):f)},"image/jpeg",.75)};i.onerror=function(){ok(f)};i.src=URL.createObjectURL(f)})}
+async function subir(f){f=await comprimir(f);var e=(f.name.split(".").pop()||"bin").toLowerCase().replace(/[^a-z0-9]/g,"").slice(0,5)||"bin",p=CUR.c.id+"/"+Date.now()+"."+e,r=await sb.storage.from("archivos").upload(p,f,{contentType:f.type});if(r.error){alert(/maximum allowed size|too large/i.test(r.error.message)?"El archivo es muy pesado. Si es un video, grabá uno más corto o con menor calidad.":r.error.message);return null}return p}
+var SU={};function imgs(){document.querySelectorAll("img[data-p]").forEach(function(im){var p=im.dataset.p;if(SU[p]){im.src=SU[p];return}sb.storage.from("archivos").createSignedUrl(p,3600).then(function(r){if(r.data){SU[p]=r.data.signedUrl;im.src=SU[p]}})})}
+function fotoH(p){return p?'<img class="mf" data-p="'+esc(p)+'" alt="">':'<div class="mf ph">🍽</div>'}
 async function ver(b,p){var x=b.nextElementSibling;if(x.innerHTML){x.innerHTML="";return}var r=await sb.storage.from("archivos").createSignedUrl(p,3600);if(r.error){alert(r.error.message);return}var u=r.data.signedUrl;x.innerHTML=/\.(mp4|mov|webm|m4v|3gp)$/i.test(p)?'<video src="'+u+'" controls playsinline style="width:100%;border-radius:10px;margin-top:6px"></video>':'<img src="'+u+'" style="width:100%;border-radius:10px;margin-top:6px">'}
+var MT="Ejercicio de hoy",MTY=["Ejercicio de hoy","Foto de progreso (mensual)","Foto inicial"];
 function dpMedia(){
- var h="";
- if(!coach())h+='<div class="card"><label>Qué vas a subir</label><select id="at">'+opts(["Ejercicio de hoy","Foto de progreso (mensual)","Foto inicial"],"Ejercicio de hoy")+'</select><label>Plano</label><select id="ap">'+opts(["frontal","sagital","transversal"],"frontal")+'</select><label>Comentario (opcional)</label><input id="an"><label>Archivo (video: hasta 50 MB, unos 30 a 60 segundos)</label><input id="af" type="file" accept="image/*,video/*"><button class="p w" id="ab" onclick="subirA()">Subir</button></div>';
- CUR.adj.slice().reverse().forEach(function(a){
+ var ej=MT==MTY[0],h='<div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0">'+MTY.map(function(t){var n=CUR.adj.filter(function(a){return a.tipo==t}).length;return '<button class="'+(MT==t?"p":"")+'" style="min-height:42px;padding:0 12px" onclick="MT=\''+t+'\';redraw()">'+t.replace(" (mensual)","")+" ("+n+")</button>"}).join("")+'</div>';
+ if(!coach())h+='<div class="card"><b>Subir: '+MT+'</b>'+(ej?'':'<label>Plano</label><select id="ap">'+opts(PLANOS,"frontal")+'</select>')+'<label>'+(ej?"¿Qué ejercicio? (opcional)":"Comentario (opcional)")+'</label><input id="an"><label>Archivo (video: hasta 50 MB)</label><input id="af" type="file" accept="image/*,video/*"><button class="p w" id="ab" onclick="subirA()">Subir</button></div>';
+ var l=CUR.adj.filter(function(a){return a.tipo==MT}).reverse();
+ l.forEach(function(a){
   h+='<div class="card"><div class="row"><b>'+esc(a.tipo)+(a.plano?" · plano "+esc(a.plano):"")+'</b><span class="mut">'+fmt(a.creado.slice(0,10))+'</span></div>'+(a.nota?'<div class="mut">'+esc(a.nota)+'</div>':'')+'<button class="w" data-p="'+esc(a.path)+'" onclick="ver(this,this.dataset.p)">Ver</button><div></div>';
   if(coach())h+='<label>Tu devolución</label><textarea id="dv'+a.id+'" rows="2">'+esc(a.devolucion)+'</textarea><button class="p w" onclick="devol(\''+a.id+'\')">Guardar devolución</button>';
   else if(a.devolucion)h+='<p><b>Devolución de tu coach:</b> '+esc(a.devolucion)+'</p>';
   h+='</div>'});
- return h||'<p class="mut">Todavía no hay archivos.</p>'}
+ return l.length?h:h+'<p class="mut">Todavía no hay archivos en esta sección.</p>'}
+async function subirEj(inp,did,i){var f=inp.files[0];if(!f)return;var d=CUR.p.find(function(z){return z.id===did}),x=d.items[i],p=await subir(f);if(!p)return;var r=await sb.from("adjuntos").insert({cliente_id:CUR.c.id,tipo:"Ejercicio de hoy",plano:"",nota:typeof x==="object"?x.nombre:x,path:p});if(r.error){alert(r.error.message);return}await loadCur(CUR.c.id);redraw();alert("Cargado ✓ Tu coach lo va a ver.")}
 async function subirA(){
  var f=$("af").files[0];if(!f){alert("Elegí un archivo.");return}
  $("ab").disabled=true;$("ab").textContent="Subiendo…";
  var p=await subir(f);if(!p){draw();return}
- var r=await sb.from("adjuntos").insert({cliente_id:CUR.c.id,tipo:$("at").value,plano:$("ap").value,nota:$("an").value.trim()||null,path:p});
+ var r=await sb.from("adjuntos").insert({cliente_id:CUR.c.id,tipo:MT,plano:$("ap")?$("ap").value:"",nota:$("an").value.trim()||null,path:p});
  if(r.error)alert(r.error.message);await loadCur(CUR.c.id);draw()}
 async function devol(i){var r=await sb.from("adjuntos").update({devolucion:$("dv"+i).value}).eq("id",i);if(r.error){alert(r.error.message);return}alert("Devolución guardada.");await loadCur(CUR.c.id);draw()}
 async function addN(){
@@ -212,7 +219,7 @@ function dpNutri(){
  var h=coach()?nuCoachH():"";
  if(!coach())h+='<div class="card"><label>Momento</label><select id="nm">'+opts(["Desayuno","Almuerzo","Merienda","Cena","Snack"],"Almuerzo")+'</select><label>Qué comiste</label><textarea id="nd" rows="2"></textarea><label>Foto del plato (opcional)</label><input id="nf" type="file" accept="image/*"><button class="w" onclick="calcFoto()">✨ Calcular calorías de esta foto</button><p id="ia" class="mut"></p><button class="p w" id="nb" onclick="addN()">Guardar comida</button></div>';
  CUR.com.slice().reverse().forEach(function(m){
-  h+='<div class="card"><div class="row"><b>'+esc(m.momento)+'</b><span class="mut">'+fmt(m.fecha)+'</span></div><div>'+esc(m.descripcion)+'</div>'+(m.foto?'<button class="w" data-p="'+esc(m.foto)+'" onclick="ver(this,this.dataset.p)">Ver foto</button><div></div>':'');
+  h+='<div class="card"><div class="meal">'+fotoH(m.foto)+'<div style="flex:1"><div class="row"><b>'+esc(m.momento)+'</b><span class="mut">'+fmt(m.fecha)+'</span></div><div>'+esc(m.descripcion)+'</div></div></div>';
   if(coach())h+='<label>Tu comentario</label><textarea id="cc'+m.id+'" rows="2">'+esc(m.comentario)+'</textarea><button class="p w" onclick="comen(\''+m.id+'\')">Guardar comentario</button>';
   else if(m.comentario)h+='<p><b>Tu coach:</b> '+esc(m.comentario)+'</p>';
   h+='</div>'});
@@ -223,7 +230,7 @@ async function calcFoto(){
  var r=await sb.functions.invoke("analizar-plato",{body:{imagen:im,nota:$("nd").value}});
  if(r.error||!r.data||r.data.error)throw 0;
  o.textContent=r.data.texto;$("nd").value=($("nd").value+"\n"+r.data.texto).trim()}catch(e){o.textContent="No se pudo calcular. Escribí qué comiste y guardalo igual."}}
-function runPreset(){DT="Día de running";DRAFT=[["Activación","Caminata rápida","5 min"],["Principal","Trote suave","20 min"],["Vuelta a la calma","Caminata suave","5 min"],["Vuelta a la calma","Estiramiento de cuádriceps","30 s"],["Vuelta a la calma","Estiramiento de isquios","30 s"]].map(a=>({bloque:a[0],nombre:a[1],detalle:a[2],video:"",plano:""}));draw()}
+function runPreset(){DT="Día de running";ZS="";DRAFT=[["Activación","Caminata rápida","5 min"],["Principal","Trote suave","20 min"],["Vuelta a la calma","Caminata suave","5 min"],["Vuelta a la calma","Estiramiento de cuádriceps","30 s"],["Vuelta a la calma","Estiramiento de isquios","30 s"]].map(a=>({bloque:a[0],nombre:a[1],detalle:a[2],video:"",plano:""}));draw()}
 var TF=[["tp","Preparar",10],["tw","Trabajo",20],["tr","Descanso",10],["tc","Ciclos",8],["ts","Series",1],["tg","Descanso entre series",60]];
 function tv(i){return Math.max(0,+$(i).value||0)}
 function ts_(i,d){$(i).value=Math.max(0,tv(i)+d*(i=="tg"?5:1));tInfo()}
@@ -252,12 +259,12 @@ function nuCliH(){
  var t=hoy(),l=CUR.nu.filter(x=>!x.fecha||x.fecha==t).sort((a,b)=>MOM.indexOf(a.momento)-MOM.indexOf(b.momento));
  if(!l.length)return '<div class="card mut">Tu coach todavía no te cargó la alimentación de hoy.</div><h2>Lo que comí</h2>';
  var k=l.reduce((s,x)=>s+(+x.kcal||0),0);
- return '<h2>Mi plan de hoy</h2>'+l.map(x=>'<div class="card"><div class="row"><b>'+esc(x.momento)+'</b>'+(x.kcal?'<span class="mut">~'+x.kcal+' kcal</span>':'')+'</div><div>'+esc(x.descripcion)+'</div></div>').join("")+(k?'<p class="mut">Total aprox.: '+k+' kcal</p>':"")+'<h2>Lo que comí</h2>'}
+ return '<h2>Mi plan de hoy</h2>'+l.map(x=>'<div class="card"><div class="meal">'+fotoH(x.foto)+'<div style="flex:1"><div class="row"><b>'+esc(x.momento)+'</b>'+(x.kcal?'<span class="mut">~'+x.kcal+' kcal</span>':'')+'</div><div>'+esc(x.descripcion)+'</div></div></div></div>').join("")+(k?'<p class="mut">Total aprox.: '+k+' kcal</p>':"")+'<h2>Lo que comí</h2>'}
 function nuCoachH(){
- var h='<div class="card"><b>Plan de comidas</b><p class="mut">Sin fecha = se repite todos los días.</p><label>Momento</label><select id="um">'+opts(MOM,"Desayuno")+'</select><label>Comida</label><textarea id="ud" rows="2"></textarea><div class="g2"><div><label>Kcal (opcional)</label><input id="uk" type="number" inputmode="numeric"></div><div><label>Fecha (opcional)</label><input id="uf" type="date"></div></div><button class="p w" onclick="addNu()">+ Agregar al plan</button></div>';
- CUR.nu.forEach(x=>h+='<div class="row mut" style="margin:6px 0"><span>'+(x.fecha?fmt(x.fecha):"Todos los días")+' · '+esc(x.momento)+': '+esc(x.descripcion)+(x.kcal?' ('+x.kcal+' kcal)':"")+'</span><button onclick="delNu(\''+x.id+'\')">✕</button></div>');
+ var h='<div class="card"><b>Plan de comidas</b><p class="mut">Sin fecha = se repite todos los días.</p><label>Momento</label><select id="um">'+opts(MOM,"Desayuno")+'</select><label>Comida</label><textarea id="ud" rows="2"></textarea><div class="g2"><div><label>Kcal (opcional)</label><input id="uk" type="number" inputmode="numeric"></div><div><label>Fecha (opcional)</label><input id="uf" type="date"></div></div><label>Foto de la comida (opcional)</label><input id="uph" type="file" accept="image/*"><button class="p w" id="unb" onclick="addNu()">+ Agregar al plan</button></div>';
+ CUR.nu.forEach(x=>h+='<div class="row mut" style="margin:6px 0">'+(x.foto?'<img class="mf" style="width:56px;height:56px" data-p="'+esc(x.foto)+'">':"")+'<span style="flex:1">'+(x.fecha?fmt(x.fecha):"Todos los días")+' · '+esc(x.momento)+': '+esc(x.descripcion)+(x.kcal?' ('+x.kcal+' kcal)':"")+'</span><button onclick="delNu(\''+x.id+'\')">✕</button></div>');
  return h+'<h2>Comidas que registró</h2>'}
-async function addNu(){var d=$("ud").value.trim();if(!d)return;var r=await sb.from("plan_nutri").insert({cliente_id:CUR.c.id,momento:$("um").value,descripcion:d,kcal:parseInt($("uk").value)||null,fecha:$("uf").value||null});if(r.error){alert(r.error.message);return}await loadCur(CUR.c.id);draw()}
+async function addNu(){var d=$("ud").value.trim();if(!d)return;$("unb").disabled=true;var f=$("uph").files[0],fo=null;if(f){fo=await subir(f);if(!fo){draw();return}}var o={cliente_id:CUR.c.id,momento:$("um").value,descripcion:d,kcal:parseInt($("uk").value)||null,fecha:$("uf").value||null};if(fo)o.foto=fo;var r=await sb.from("plan_nutri").insert(o);if(r.error){alert(r.error.message);draw();return}await loadCur(CUR.c.id);draw()}
 async function delNu(i){await sb.from("plan_nutri").delete().eq("id",i);await loadCur(CUR.c.id);draw()}
 async function loadSol(){var r=await sb.from("solicitudes").select("*").eq("estado","pendiente").order("creado");SOL=r.data||[]}
 async function loadSolMia(){var r=await sb.from("solicitudes").select("*").limit(1);MIA=r.data&&r.data[0]||null}
@@ -282,21 +289,23 @@ async function enviarSol(){
  if(r.error){alert(r.error.message);return}await loadSolMia();draw()}
 
 var ZON=["Tren superior","Tren inferior","Core","Activación","Vuelta a la calma"],ZS="",XQ="",XD="",XS={};
-function zonasH(){return '<input placeholder="🔍 Buscar ejercicio" value="'+esc(XQ)+'" oninput="XQ=this.value;zl()"><div class="g2" style="margin:8px 0">'+ZON.map(z=>'<button class="'+(ZS==z?"p":"")+'" onclick="zona(\''+z+'\')">'+z+'</button>').join("")+'</div><div id="zl"></div>'}
-function zona(z){ZS=ZS==z?"":z;if(ZS=="Core"||ZS=="Activación"||ZS=="Vuelta a la calma")DB=ZS;else if(ZS&&DB!="Principal"&&DB!="Secundario")DB="Principal";draw()}
+function zonasH(){return '<div class="g2" style="margin:4px 0 8px">'+ZON.slice(0,2).map(function(z){return '<button class="'+(ZS==z?"p":"")+'" onclick="zona(\''+z+'\')">'+z+'</button>'}).join("")+'</div><input placeholder="🔍 Buscar ejercicio" value="'+esc(XQ)+'" oninput="XQ=this.value;zl()"><div id="zl"></div>'}
+function zona(z){ZS=ZS==z?"":z;DT="";draw()}
 async function setZ(i,v){if(!v)return;var r=await sb.from("ejercicios").update({grupo:v}).eq("id",i);if(r.error){alert(r.error.message);return}await loadList();draw()}
 
 function frase(){var a=String(CFG.frase_coach||"").split("\n").map(x=>x.trim()).filter(Boolean),L=a.length?a:FR;return L[Math.floor((Date.now()-new Date().getTimezoneOffset()*6e4)/864e5)%L.length]}
 function motH(){var im=/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/.test(CFG.imagen_coach||"")?CFG.imagen_coach:"";return '<div class="card mot"'+(im?' style="background:linear-gradient(rgba(0,0,0,.45),rgba(0,0,0,.45)),url('+im+') center/cover;color:#fff"':'')+'>“'+esc(frase())+'”</div>'}
 function fotoMesH(){var m=hoy().slice(0,7);return CUR.adj.some(a=>/mensual|progreso/i.test(a.tipo)&&String(a.creado).slice(0,7)==m)?"":'<div class="card"><b>📸 Foto de progreso del mes</b><p class="mut">Este mes todavía no subiste tu foto. Subila para que tu coach vea cómo venís.</p><button class="p w" onclick="TAB=\'prog\';leave();draw();scrollTo(0,0)">Subir foto</button></div>'}
 function zl(){
- var q=XQ.toLowerCase(),l=LIB.filter(e=>q?e.nombre.toLowerCase().indexOf(q)>=0:(e.grupo||"")==ZS),ks=Object.keys(XS),h=(!q&&!ZS)?'<p class="mut">Tocá una categoría para ver sus ejercicios.</p>':l.length?l.map(e=>'<label class="item" style="font-size:17px;color:var(--tx)"><input type="checkbox" '+(e.id in XS?"checked":"")+' onchange="xt(\''+e.id+'\',this.checked)"><span>'+esc(e.nombre)+(q&&e.grupo?' <span class="tag mut">'+esc(e.grupo)+'</span>':"")+'</span></label>').join(""):'<p class="mut">No hay ejercicios en esta categoría. Cargalos en la biblioteca.</p>';
- if(ks.length)h+='<b>Marcados ('+ks.length+')</b>'+ks.map(i=>{var e=LIB.find(z=>z.id==i);return e?'<div style="margin:8px 0"><span>'+esc(e.nombre)+'</span><input placeholder="Series y reps (ej: 3x12 con 10 kg)" value="'+esc(XS[i])+'" oninput="XS[\''+i+'\']=this.value"></div>':""}).join("");
+ var q=XQ.toLowerCase(),C=["Core","Activación","Vuelta a la calma"],
+ l=LIB.filter(function(e){return q?e.nombre.toLowerCase().indexOf(q)>=0:ZS&&((e.grupo||"")==ZS||C.indexOf(e.grupo||"")>=0)}).sort(function(a,b){return BLOQ.indexOf(nb(a.bloque))-BLOQ.indexOf(nb(b.bloque))}),ks=Object.keys(XS),
+ h=(!q&&!ZS)?'<p class="mut">Elegí qué toca hoy o buscá un ejercicio.</p>':l.length?l.map(function(e){return '<label class="item" style="font-size:17px;color:var(--tx)"><input type="checkbox" '+(e.id in XS?"checked":"")+' onchange="xt(\''+e.id+'\',this.checked)"><span>'+esc(e.nombre)+' <span class="tag mut">'+esc(nb(e.bloque)||"")+'</span></span></label>'}).join(""):'<p class="mut">No hay ejercicios. Cargalos en la biblioteca.</p>';
+ if(ks.length)h+='<b>Marcados ('+ks.length+')</b>'+ks.map(function(i){var e=LIB.find(function(z){return z.id==i});return e?'<div style="margin:8px 0"><b>'+esc(e.nombre)+'</b><select onchange="XS[\''+i+'\'].b=this.value">'+opts(BLOQ,XS[i].b)+'</select><input placeholder="Series y reps (ej: 3x12 con 10 kg)" value="'+esc(XS[i].d)+'" oninput="XS[\''+i+'\'].d=this.value"></div>':""}).join("");
  $("zl").innerHTML=h}
-function xt(i,c){if(c)XS[i]="";else delete XS[i];zl()}
+function xt(i,c){if(c){var e=LIB.find(function(z){return z.id==i});XS[i]={d:"",b:nb(e&&e.bloque)||"Principal"}}else delete XS[i];zl()}
 function addX(){
  var ids=Object.keys(XS);if(!ids.length){alert("Marcá al menos un ejercicio.");return}
- ids.forEach(i=>{var e=LIB.find(z=>z.id==i);if(e)DRAFT.push({bloque:DB,nombre:e.nombre,detalle:String(XS[i]).trim(),video:e.video||"",plano:e.plano||""})});XS={};draw()}
+ ids.forEach(function(i){var e=LIB.find(function(z){return z.id==i});if(e)DRAFT.push({bloque:XS[i].b,nombre:e.nombre,detalle:String(XS[i].d).trim(),video:e.video||"",plano:e.plano||""})});XS={};draw()}
 function pagoH(c){return(c.pagado?'<p>'+(c.vence?'Pagado hasta <b>'+fmt(c.vence)+'</b>':'Pago registrado sin vencimiento.')+'</p>':'')+'<label>Período</label><select id="pm"><option value="1">1 mes</option><option value="2">2 meses</option><option value="3">3 meses</option><option value="6">6 meses</option><option value="0">Sin vencimiento</option></select><button class="p w" onclick="pagar()">'+(c.pagado?"Registrar renovación":"Marcar como pagó")+'</button>'+(c.pagado?'<button class="w" onclick="setF(\'pagado\',false)">Marcar como NO pagó</button>':'')}
 async function pagoRapido(id){var c=LIST.find(function(x){return x.id==id});if(!c)return;var d=c.vence&&c.vence>hoy()?new Date(c.vence+"T12:00"):new Date();d.setMonth(d.getMonth()+1);var v=ymd(d),r=await sb.from("clientes").update({pagado:true,vence:v}).eq("id",id);if(r.error){alert(r.error.message);return}c.pagado=true;c.vence=v;draw()}
 async function pagar(){
@@ -322,13 +331,39 @@ async function saveImg(){
 async function quitImg(){await sb.from("config").upsert({clave:"imagen_coach",valor:""});await loadList();draw()}
 
 function vPdf(){
- var c=CUR.c,m=macros(c),h='<div class="noimp"><button onclick="go(\'cli\')">← Volver</button><button class="p w" onclick="window.print()">⬇ Guardar como PDF</button><p class="mut">Se abre la impresión: elegí “Guardar como PDF”. Así tenés tu rutina sin internet.</p></div><h1>Mi rutina · '+esc(c.nombre)+'</h1>';
+ var c=CUR.c,m=macros(c),h='<div class="noimp"><button onclick="go(\'cli\')">← Volver</button><button class="p w" onclick="descargarPdf()">⬇ Descargar PDF</button><p class="mut">Se descarga el archivo directo, sin abrir la impresora.</p></div><h1>Mi rutina · '+esc(c.nombre)+'</h1>';
  if(m)h+='<div class="card"><b>Mi objetivo diario</b><p>'+m.k+' kcal · Proteínas '+m.P+' g · Carbohidratos '+m.C+' g · Grasas '+m.G+' g</p></div>';
  if(!CUR.p.length)h+='<p class="mut">Todavía no tenés días de entrenamiento cargados.</p>';
  CUR.p.forEach(function(d){h+='<div class="card"><b class="tt" style="font-size:22px">'+fmt(d.fecha)+' · '+esc(d.titulo)+'</b>';
   BLOQ.forEach(function(b){var g=d.items.filter(function(x){return nb(typeof x==="object"?x.bloque:"Principal")===b});if(!g.length)return;h+='<div class="mut" style="margin-top:8px"><b>'+b+'</b></div>'+g.map(function(x){return '<div>☐ '+esc(itemTxt(x))+'</div>'}).join("")});
   h+='</div>'});
  return h}
+function wrapT(t,n){var o=[],l="";String(t).split(" ").forEach(function(w){if((l+" "+w).length>n&&l){o.push(l);l=w}else l=l?l+" "+w:w});if(l)o.push(l);return o}
+function pdfLines(){
+ var c=CUR.c,m=macros(c),L=[["Mi rutina - "+c.nombre,20,1],["",8,0]];
+ if(m){L.push(["Mi objetivo diario",13,1]);L.push([m.k+" kcal · Proteínas "+m.P+" g · Carbohidratos "+m.C+" g · Grasas "+m.G+" g",11,0]);L.push(["",11,0])}
+ if(!CUR.p.length)L.push(["Todavía no tenés días de entrenamiento cargados.",11,0]);
+ CUR.p.forEach(function(d){L.push([fmt(d.fecha)+" · "+d.titulo,15,1]);
+  BLOQ.forEach(function(b){var g=d.items.filter(function(x){return nb(typeof x==="object"?x.bloque:"Principal")===b});if(!g.length)return;L.push([b,12,1]);g.forEach(function(x){wrapT("[ ] "+itemTxt(x),85).forEach(function(t){L.push([t,11,0])})})});
+  L.push(["",11,0])});
+ return L}
+function pe(t){return String(t).replace(/[—–]/g,"-").replace(/☐/g,"[ ]").replace(/[\\()]/g,"\\$&").replace(/[^\x00-\xff]/g,"?")}
+function pdfBlob(L){
+ var Wd=595,Ht=842,M=50,pg=[],cur=[],y=Ht-M;
+ L.forEach(function(l){var z=l[1],lh=z*1.45;if(y-lh<M){pg.push(cur);cur=[];y=Ht-M}y-=lh;cur.push([l[0],z,l[2],y])});pg.push(cur);
+ var o=[],n=pg.length;
+ o[1]="<</Type/Catalog/Pages 2 0 R>>";
+ o[2]="<</Type/Pages/Kids["+pg.map(function(_,i){return(5+i*2)+" 0 R"}).join(" ")+"]/Count "+n+">>";
+ o[3]="<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>";
+ o[4]="<</Type/Font/Subtype/Type1/BaseFont/Helvetica-Bold/Encoding/WinAnsiEncoding>>";
+ pg.forEach(function(p,i){var c=p.map(function(t){return"BT /"+(t[2]?"F2":"F1")+" "+t[1]+" Tf "+M+" "+t[3].toFixed(1)+" Td ("+pe(t[0])+") Tj ET"}).join("\n");
+  o[5+i*2]="<</Type/Page/Parent 2 0 R/MediaBox[0 0 "+Wd+" "+Ht+"]/Resources<</Font<</F1 3 0 R/F2 4 0 R>>>>/Contents "+(6+i*2)+" 0 R>>";
+  o[6+i*2]="<</Length "+c.length+">>\nstream\n"+c+"\nendstream"});
+ var s="%PDF-1.4\n",off=[],i;
+ for(i=1;i<o.length;i++){off[i]=s.length;s+=i+" 0 obj\n"+o[i]+"\nendobj\n"}
+ var x=s.length;s+="xref\n0 "+o.length+"\n0000000000 65535 f \n"+off.slice(1).map(function(v){return String(v).padStart(10,"0")+" 00000 n \n"}).join("")+"trailer\n<</Size "+o.length+"/Root 1 0 R>>\nstartxref\n"+x+"\n%%EOF";
+ var u=new Uint8Array(s.length);for(i=0;i<s.length;i++)u[i]=s.charCodeAt(i)&255;return new Blob([u],{type:"application/pdf"})}
+function descargarPdf(){var a=document.createElement("a");a.href=URL.createObjectURL(pdfBlob(pdfLines()));a.download="mi-rutina.pdf";document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},2000)}
 function macros(c){var k=kcal(c);if(!k)return null;var G=Math.round(.25*k.k/9);return{k:k.k,P:k.p,G:G,C:Math.max(0,Math.round((k.k-k.p*4-G*9)/4))}}
 function macH(c){
  var m=macros(c);if(!m)return"";
@@ -363,7 +398,8 @@ function recetasH(){
 function redraw(){var S={},y=scrollY;document.querySelectorAll("#app input[id],#app textarea[id],#app select[id]").forEach(function(e){if(e.type!=="file")S[e.id]=e.value});draw();Object.keys(S).forEach(function(k){var e=$(k);if(e&&e.type!=="file"&&S[k]!=="")e.value=S[k]});scrollTo(0,y)}
 function datosH(c){var f=fichaCli(c);return(c.edad&&c.peso&&c.altura)?DP("datos","📋 Mis datos",f):f}
 function regH(){var g={};CUR.reg.forEach(function(r){(g[r.ejercicio]=g[r.ejercicio]||[]).push(r)});var k=Object.keys(g);return k.length?k.map(function(e){var a=g[e],f=a[0],l=a[a.length-1],mx=Math.max.apply(null,a.map(function(r){return+r.kg||0}));return '<div class="card"><b>'+esc(e)+'</b><div class="mut">Primero: '+f.kg+' kg × '+f.reps+' · Último: '+l.kg+' kg × '+l.reps+' · Máximo: '+mx+' kg</div></div>'}).join(""):'<p class="mut">Todavía no hay marcas anotadas.</p>'}
-function markH(d,x,i){if(typeof x!=="object"||["Principal","Secundario"].indexOf(nb(x.bloque))<0)return"";var u=CUR.reg.filter(function(r){return r.ejercicio==x.nombre}).pop(),k=d.id+"_"+i;return '<div style="margin:0 0 8px 36px"><div class="row" style="gap:6px"><input id="rr'+k+'" type="number" inputmode="numeric" placeholder="Reps"><input id="rk'+k+'" type="number" inputmode="decimal" placeholder="Kg"><button onclick="anotar(\''+d.id+'\','+i+')">✓</button></div>'+(u?'<div class="mut">Última vez: '+u.kg+' kg × '+u.reps+'</div>':"")+'</div>'}
+function esCardio(x){return/trote|caminata|correr|running|bici|cinta|el[ií]ptico|soga/i.test(x.nombre)||/^\s*\d+\s*(min|s|seg|km)\b/i.test(x.detalle||"")}
+function markH(d,x,i){if(typeof x!=="object"||esCardio(x)||["Principal","Secundario"].indexOf(nb(x.bloque))<0)return"";var u=CUR.reg.filter(function(r){return r.ejercicio==x.nombre}).pop(),k=d.id+"_"+i;return '<div style="margin:0 0 8px 36px"><div class="row" style="gap:6px"><input id="rr'+k+'" type="number" inputmode="numeric" placeholder="Reps"><input id="rk'+k+'" type="number" inputmode="decimal" placeholder="Kg"><button onclick="anotar(\''+d.id+'\','+i+')">✓</button></div>'+(u?'<div class="mut">Última vez: '+u.kg+' kg × '+u.reps+'</div>':"")+'</div>'}
 async function anotar(did,i){var d=CUR.p.find(function(z){return z.id===did}),x=d.items[i],k=did+"_"+i,r=parseInt($("rr"+k).value),w=parseFloat($("rk"+k).value);if(isNaN(r)||isNaN(w)){alert("Completá reps y kg.");return}var q=await sb.from("registros").insert({cliente_id:CUR.c.id,ejercicio:x.nombre,kg:w,reps:r});if(q.error){alert(q.error.message);return}$("rr"+k).value="";$("rk"+k).value="";await loadCur(CUR.c.id);redraw()}
 async function copiarD(id){var d=CUR.p.find(function(z){return z.id===id}),f=$("cp"+id).value;if(!f){alert("Elegí la fecha.");return}var r=await sb.from("plan_dias").insert({cliente_id:CUR.c.id,fecha:f,titulo:d.titulo,items:d.items});if(r.error){alert(r.error.message);return}await loadCur(CUR.c.id);draw()}
 function cumpH(){var a=ymd(new Date(Date.now()-6*864e5)),t=hoy(),n=0,h=0;CUR.p.forEach(function(d){if(d.fecha>=a&&d.fecha<=t){n+=d.items.length;h+=Object.values(d.hecho||{}).filter(Boolean).length}});return n?'<div class="card"><div class="row"><b>Cumplimiento (últimos 7 días)</b><b class="tt" style="font-size:26px">'+Math.round(h/n*100)+'%</b></div><div class="mut">'+h+' de '+n+' ejercicios hechos</div></div>':""}
