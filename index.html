@@ -104,6 +104,10 @@ nav button svg{width:22px;height:22px;fill:currentColor;display:block;margin:0 a
 .mus .mh{margin-top:10px;padding-top:8px;border-top:1px solid var(--bd)}.mus .mh b{display:block;font-size:15px}.mus .mh small{display:block;font-size:13px;color:var(--mut)}.mus .mr{border-top:0;padding:5px 0 5px 4px}.mus .mr b{display:block;font-size:16px}
 .mus .mr span{font-size:14px;color:var(--mut)}
 .exm{position:fixed;inset:0;z-index:70;background:var(--bg);overflow:auto;padding:16px 16px 60px}.exm img.gifx,.exm video.gifx{max-height:46vh}.toast{position:fixed;top:12px;left:12px;right:12px;z-index:90;background:var(--pri);color:#111;padding:12px 14px;border-radius:14px;font-weight:600;box-shadow:0 6px 20px #0008}
+.exm{animation:exup .28s ease-out}@keyframes exup{from{transform:translateY(70px);opacity:0}to{transform:none;opacity:1}}
+.plato svg path{transform-origin:130px 130px;animation:plpop .55s ease-out both}@keyframes plpop{from{transform:scale(.4);opacity:0}to{transform:scale(1);opacity:1}}
+.ins{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.ins div{text-align:center;padding:10px 4px;border-radius:14px;background:var(--card);border:1px solid var(--bd);font-size:12px;line-height:1.2}.ins div i{display:block;font-style:normal;font-size:30px;margin-bottom:2px}.ins .off{opacity:.35;filter:grayscale(1)}
+.rt .bar{margin:8px 0}
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
 </head>
@@ -206,7 +210,7 @@ function molH(){var m=(CUR.mol||[]).slice().reverse();return m.length?'<div clas
 function prefH(){var c=CUR.c,r=getEv("restricciones"),m=macros(c);return '<div class="card"><b>Objetivo y preferencias</b><label>Objetivo calórico</label>'+sel("obj",c.obj,[["deficit","Déficit"],["mantener","Mantener"],["superavit","Superávit"]])+(m?'<p class="mut">Meta estimada: '+m.k+' kcal · P '+m.P+' g · C '+m.C+' g · G '+m.G+' g</p>':'<p class="mut">Completá la ficha (sexo, edad, peso, altura) para calcular la meta.</p>')+'<label>No come / alergias / preferencias</label><textarea rows="2" placeholder="Ej: no come pescado, es vegetariana…" onchange="saveRestr(this.value)">'+esc(r?r.datos.texto:"")+'</textarea><button class="p w" onclick="iaMenu()">✨ Armar menú de 7 días con IA</button></div>'}
 async function saveRestr(t){var r=await sb.from("evaluaciones").insert({cliente_id:CUR.c.id,tipo:"restricciones",datos:{texto:t.trim()}});if(r.error){alert(r.error.message);return}await loadCur(CUR.c.id);redraw()}
 function iaMenu(){IACLI=CUR.c.id;IAPRE="Armá un menú de 7 días para "+CUR.c.nombre+" desde mañana, respetando su objetivo calórico, sus macros y lo que no come. Poné calorías, proteína, carbos y grasas en cada comida.";go("ia")}
-function iaMic(){var R=window.SpeechRecognition||window.webkitSpeechRecognition,b=$("iamic");if(!R){alert("Este navegador no dicta desde la página. Usá el micrófono del teclado del celular.");return}if(IAREC){IAREC.stop();return}var r=new R(),base=$("iat").value;r.lang="es-AR";r.interimResults=true;r.continuous=true;IAREC=r;r.onresult=function(e){var t="";for(var i=0;i<e.results.length;i++)t+=e.results[i][0].transcript;$("iat").value=(base?base+" ":"")+t};r.onend=function(){IAREC=null;var x=$("iamic");if(x)x.textContent="🎤"};r.onerror=function(){};if(b)b.textContent="⏹";r.start()}
+function iaMic(){var R=window.SpeechRecognition||window.webkitSpeechRecognition,b=$("iamic");if(!R){alert("Este navegador no dicta desde la página. Usá el micrófono del teclado del celular.");return}if(IAREC){IAREC.stop();return}var r=new R(),base=$("iat").value;r.lang="es-AR";r.interimResults=true;r.continuous=true;IAREC=r;r.onresult=function(e){var t="";for(var i=0;i<e.results.length;i++)t+=e.results[i][0].transcript;$("iat").value=(base?base+" ":"")+t};r.onend=function(){IAREC=null;var x=$("iamic");if(x)x.textContent="🎤"};r.onerror=function(e){var m=e&&e.error;alert(m=="not-allowed"||m=="service-not-allowed"?"El navegador no deja usar el micrófono en esta página. Abrila desde una dirección https:// o usá el 🎤 del teclado del celular.":"No se pudo dictar ("+(m||"error")+"). Usá el 🎤 del teclado del celular.")};if(b)b.textContent="⏹";r.start()}
 /* ===== Asistente IA ===== */
 var IAM=[],IAH=[],IAIMG=null,IAFILE=null,IABUSY=false,IACLI=null;
 function iaTxt(t){return esc(t).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/\n/g,"<br>")}
@@ -1016,6 +1020,118 @@ document.addEventListener("visibilitychange",function(){if(document.visibilitySt
 
 if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(function(){});
 init();
+</script>
+<script>
+try{
+/* ===== v48: plato nutricional, retos con premio e insignias ===== */
+var PLF="obj";
+function plSet(k){PLF=k;redraw()}
+function plW(cx,cy,r,a0,a1){var p=function(a){return[cx+r*Math.sin(a),cy-r*Math.cos(a)]},s=p(a0),e=p(a1);return"M"+cx+" "+cy+" L"+s[0].toFixed(1)+" "+s[1].toFixed(1)+" A"+r+" "+r+" 0 "+((a1-a0)>Math.PI?1:0)+" 1 "+e[0].toFixed(1)+" "+e[1].toFixed(1)+" Z"}
+function platoH(c){
+ var PR={obj:{deficit:[40,30,20,10],mantener:[30,30,30,10],superavit:[25,30,35,10]},prot:[25,45,20,10],ener:[20,25,45,10]},
+ pc=PLF=="prot"?PR.prot:PLF=="ener"?PR.ener:(PR.obj[c.obj]||PR.obj.mantener),
+ N=[["🥦","Verduras","#35b36a","Verduras","brócoli, zapallito, tomate, espinaca"],["🥩","Proteína","#e8575a","Proteína","carne, pollo, pescado, huevo"],["🍚","Carbohidratos","#f5a623","Arroz y más","arroz, fideos, papa, pan"],["🥑","Grasas","#9b6bd6","Grasas","palta, aceite de oliva, frutos secos"]],
+ m=macros(c),a=0,sv="",lg="";
+ pc.forEach(function(v,i){var a1=a+v/100*2*Math.PI,mid=(a+a1)/2,lx=130+76*Math.sin(mid),ly=130-76*Math.cos(mid);
+  sv+='<path d="'+plW(130,130,104,a,a1)+'" fill="'+N[i][2]+'" stroke="#1a2540" stroke-width="3" style="animation-delay:'+(i*.12)+'s"/>'+'<text x="'+lx.toFixed(1)+'" y="'+(ly-4).toFixed(1)+'" text-anchor="middle" font-size="'+(v>=20?26:20)+'">'+N[i][0]+'</text><text x="'+lx.toFixed(1)+'" y="'+(ly+(v>=20?14:11)).toFixed(1)+'" text-anchor="middle" font-size="'+(v>=20?13:11)+'" font-weight="700" fill="#fff" stroke="rgba(0,0,0,.35)" stroke-width=".6" paint-order="stroke">'+N[i][3]+'</text><text x="'+lx.toFixed(1)+'" y="'+(ly+(v>=20?29:23)).toFixed(1)+'" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" stroke="rgba(0,0,0,.35)" stroke-width=".6" paint-order="stroke">'+v+'%</text>';a=a1});
+ var por=function(g,u,d){return m&&g?Math.max(1,Math.round(g/4/u))+" "+d:""};
+ var T=[["Verduras","a gusto: 2 puños por comida, de todos los colores"],["Proteína",m?"≈ "+Math.round(m.P/4)+" g por comida · "+por(m.P,25,"palma(s) de la mano"):"1 palma de la mano por comida"],["Carbohidratos",m?"≈ "+Math.round(m.C/4)+" g por comida · "+por(m.C,30,"puño(s) cocidos"):"1 puño por comida"],["Grasas",m?"≈ "+Math.round(m.G/4)+" g por comida · "+por(m.G,10,"pulgar(es) / cucharada(s)"):"1 pulgar por comida"]];
+ T.forEach(function(t,i){lg+='<div class="row" style="margin:8px 0;align-items:flex-start">'+fotoPl(i,N[i][2])+'<span style="flex:1;margin-left:10px"><b>'+N[i][0]+' '+N[i][1]+' · '+pc[i]+'% del plato</b><br><span style="font-size:14px">Ej: '+N[i][4]+'</span><br><span class="mut">'+t[1]+'</span></span></div>'});
+ var ch=[["obj","Según mi objetivo"],["prot","💪 Más proteína"],["ener","⚡ Más energía"]].map(function(x){return'<button class="'+(PLF==x[0]?"p":"")+'" style="min-height:40px;padding:0 12px" onclick="plSet(\''+x[0]+'\')">'+x[1]+'</button>'}).join("");
+ var G=[["🍞","Carbohidratos","Son tu nafta: te dan energía para entrenar y rendir.","Arroz, fideos, pan, papa, batata, avena, frutas, legumbres.","4 kcal por gramo"],["🥩","Proteínas","Construyen y reparan el músculo y te dan saciedad.","Carne, pollo, pescado, huevo, lácteos, legumbres, tofu.","4 kcal por gramo"],["🥑","Grasas","Cuidan tus hormonas y ayudan a absorber vitaminas. Dan mucha energía en poco volumen.","Palta, aceite de oliva, frutos secos, semillas, pescado azul.","9 kcal por gramo"],["🥦","Verduras y fibra","Vitaminas, minerales y fibra: llenan con pocas calorías.","Ensaladas, zapallito, brócoli, zanahoria, tomate, espinaca.","Casi sin calorías"]];
+ return'<div class="sec">Tu plato ideal</div><div class="card plato"><div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">'+ch+'</div><svg viewBox="0 0 260 260" style="width:100%;max-width:300px;display:block;margin:6px auto"><circle cx="130" cy="130" r="124" fill="#e9edf6"/><circle cx="130" cy="130" r="108" fill="#fff"/>'+sv+'</svg>'+lg+'<p class="mut" style="font-size:13px">Guía visual aproximada para armar cada comida (en unas 4 comidas al día). Tu coach la ajusta según tu progreso.</p></div><div class="sec">¿Qué es cada cosa?</div>'+G.map(function(g){return'<details class="card" style="padding:0"><summary style="padding:14px;font-size:18px;font-weight:600;cursor:pointer">'+g[0]+" "+g[1]+'</summary><div style="padding:0 14px 14px"><p>'+g[2]+'</p><p class="mut">Ejemplos: '+g[3]+'</p><span class="tag mut">'+g[4]+'</span></div></details>'}).join("")}
+/* ---- alimentos ricos en cada nutriente ---- */
+var NUF="prot";
+function nuSet(k){NUF=k;redraw()}
+var NUT=[
+{k:"prot",e:"🥩",n:"Proteína",u:"g",d:"Construye y repara el músculo y da saciedad.",nota:"Carnes, pescados y huevo cocidos. Los valores varían según el alimento.",l:[["🍗","Pechuga de pollo",31],["🐟","Atún",30],["🦃","Pechuga de pavo",29],["🥩","Carne magra",26],["🍣","Salmón",25],["🦐","Langostinos",24],["🧊","Tofu firme",17],["🥚","Huevo",13]]},
+{k:"fib",e:"🌾",n:"Fibra",u:"g",d:"Ayuda a la digestión, da saciedad y cuida el intestino.",nota:"Valores orientativos. 100 g no equivalen a una porción.",l:[["⚫","Semillas de chía",34],["🟤","Semillas de lino",27],["🍿","Pochoclo sin aceite",15],["🌰","Almendras",13],["🍫","Chocolate 70-85%",11],["🌾","Avena seca",10],["🫘","Lentejas cocidas",8],["🥑","Palta",7]]},
+{k:"vc",e:"🍊",n:"Vitamina C",u:"mg",d:"Cuida las defensas, la piel y ayuda a absorber el hierro de origen vegetal.",nota:"Valores de alimentos crudos. Pueden variar según variedad y preparación.",l:[["🍈","Guayaba",228],["🫑","Morrón amarillo",184],["🌶️","Morrón rojo",128],["🥝","Kiwi",93],["🥦","Brócoli",89],["🍈","Papaya",61],["🍓","Frutillas",59],["🍊","Naranja",53]]},
+{k:"mg",e:"🌰",n:"Magnesio",u:"mg",d:"Participa en los músculos, el sistema nervioso y el descanso.",nota:"Valores orientativos. 100 g no equivalen a una porción.",l:[["🟤","Semillas de lino",392],["⚫","Semillas de chía",335],["🥜","Castañas de cajú",290],["🌰","Almendras",270],["🍫","Chocolate 70-85%",230],["🌾","Avena seca",138],["🥬","Espinaca cocida",87],["🫘","Porotos negros cocidos",70]]},
+{k:"o3",e:"🐟",n:"Omega-3",u:"g",d:"Grasas buenas que aportan al corazón y a bajar la inflamación.",nota:"Las semillas y nueces aportan ALA; los pescados, EPA y DHA. No son equivalentes.",l:[["🟤","Lino molido",22.8],["⚫","Semillas de chía",17.8],["🌰","Nueces",9.1],["🐟","Caballa cruda",2.7],["🍣","Salmón cocido",2.3],["🥫","Sardinas en lata",1.5]]},
+{k:"fe",e:"🩸",n:"Hierro",u:"mg",d:"Transporta el oxígeno en la sangre y da energía.",nota:"El hierro vegetal se absorbe mejor al acompañarlo con vitamina C.",l:[["🍫","Chocolate 70-85%",11.9],["🦪","Mejillones cocidos",6.7],["🥜","Castañas de cajú",6.7],["🥩","Hígado vacuno cocido",6.5],["🧊","Tofu",5.4],["🥬","Espinaca cocida",3.6],["🫘","Lentejas cocidas",3.3],["🥩","Carne magra cocida",2.6]]},
+{k:"k",e:"🍌",n:"Potasio",u:"mg",d:"Ayuda a los músculos, los nervios y el equilibrio de líquidos.",nota:"Valores aproximados (tablas generales de composición). Pueden variar según la preparación.",l:[["🫘","Porotos blancos cocidos",561],["🥔","Papa al horno con piel",535],["🥑","Palta",485],["🥬","Espinaca cocida",466],["🍣","Salmón cocido",384],["🫘","Lentejas cocidas",369],["🍌","Banana",358],["🍠","Batata cocida",337]]}];
+function nutH(){
+ var s=NUT.filter(function(x){return x.k==NUF})[0]||NUT[0],mx=Math.max.apply(0,s.l.map(function(x){return x[2]})),
+ ch=NUT.map(function(x){return'<button class="'+(NUF==x.k?"p":"")+'" style="min-height:40px;padding:0 12px;white-space:nowrap" onclick="nuSet(\''+x.k+'\')">'+x.e+" "+x.n+'</button>'}).join("");
+ return'<div class="sec">Alimentos ricos en…</div><div class="card"><div class="chips">'+ch+'</div><p><b>'+s.e+" "+s.n+'</b><br><span class="mut">'+s.d+'</span></p><p class="mut" style="margin:4px 0">'+s.n+' aprox. por 100 g</p><div class="tiles">'+s.l.map(function(x){var pc=Math.max(6,Math.round(x[2]/mx*100));return'<div style="background:var(--bg);border:1px solid var(--bd);border-radius:14px;padding:12px;text-align:center"><div style="font-size:44px;line-height:1.1">'+x[0]+'</div><div style="font-size:14px;margin:6px 0;min-height:36px">'+esc(x[1])+'</div><span class="tag ok" style="font-weight:700">'+String(x[2]).replace(".",",")+" "+s.u+'</span><div class="bar" style="height:6px;margin-top:8px"><i style="height:6px;width:'+pc+'%"></i></div></div>'}).join("")+'</div><p class="mut" style="font-size:13px;margin-top:10px">'+s.nota+'</p></div>'}
+var _tNutri=tNutri;
+tNutri=function(){var h=_tNutri(),i=h.indexOf("</div>");if(i<0)return h;i+=6;var p="";try{p=platoH(CUR.c)+nutH()}catch(e){}return h.slice(0,i)+p+h.slice(i)};
+
+/* ---- retos ---- */
+function rtA(s,n){var d=new Date(s+"T12:00:00");d.setDate(d.getDate()+n);return ymd(d)}
+function rtDias(){var s={};(CUR.p||[]).forEach(function(d){if(Object.values(d.hecho||{}).some(Boolean))s[d.fecha]=1});return s}
+function rtSem(r){var ds=rtDias(),ini=ymd(lunes(new Date((r.inicio||hoy())+"T12:00:00"))),t=hoy(),o=[];for(var w=0;w<(r.semanas||1);w++){var a=rtA(ini,w*7),b=rtA(a,6),n=Object.keys(ds).filter(function(f){return f>=a&&f<=b}).length;o.push({a:a,c:n,ok:n>=r.meta,act:a<=t&&t<=b,fut:a>t})}return o}
+function rtCard(r,co){
+ var w=rtSem(r),done=w.every(function(x){return x.ok}),cur=w.filter(function(x){return x.act})[0]||w[w.length-1],st=r.estado,
+ h='<div class="card rt"><div class="row"><b>🏆 '+esc(r.titulo)+'</b><span class="tag '+(st=="validado"?"ok":st=="pedido"?"":"mut")+'">'+(st=="validado"?"Cumplido ✓":st=="pedido"?"Esperando validación":"En curso")+'</span></div>';
+ if(r.premio)h+='<div class="mut">🎁 Premio: <b style="color:var(--tx)">'+esc(r.premio)+'</b></div>';
+ if(st=="validado")return h+'<div class="mut" style="margin-top:6px">Entregado el '+fmt(r.validado_en||"")+'</div>'+(co?'<button class="w" onclick="rtDel(\''+r.id+'\')">🗑 Borrar</button>':"")+'</div>';
+ h+='<div class="row" style="margin-top:8px"><span class="mut">'+(w.length>1?"Semana actual":"Esta semana")+'</span><b>'+Math.min(cur.c,r.meta)+" / "+r.meta+' entrenos</b></div><div class="bar"><i style="width:'+Math.min(100,Math.round(cur.c/r.meta*100))+'%"></i></div>';
+ if(w.length>1)h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0">'+w.map(function(x,i){return'<span class="tag '+(x.ok?"ok":x.fut?"mut":x.act?"":"bad")+'">S'+(i+1)+" · "+x.c+"/"+r.meta+(x.ok?" ✓":"")+'</span>'}).join("")+'</div>';
+ if(!co&&st=="activo"&&done)h+='<button class="p w" onclick="rtReclamar(\''+r.id+'\')">🎉 ¡Lo logré! Pedir mi premio</button>';
+ if(!co&&st=="pedido")h+='<p class="mut">Tu coach lo está revisando. ¡Ya casi!</p>';
+ if(co){if(st=="pedido")h+='<button class="p w" onclick="rtValidar(\''+r.id+'\')">✅ Validar y entregar premio</button>';else h+='<p class="mut">'+(done?"Cumplió el reto. Esperando que lo pida (o validalo vos).":"Todavía no llegó a la meta.")+'</p><button class="w" onclick="rtValidar(\''+r.id+'\')">Validar igual</button><button class="w" onclick="rtReinicio(\''+r.id+'\')">🔄 Reiniciar desde hoy</button>';h+='<button class="w" onclick="rtDel(\''+r.id+'\')">🗑 Borrar</button>'}
+ return h+'</div>'}
+async function rtReload(){var r=await sb.from("retos").select("*").eq("cliente_id",CUR.c.id).order("creado");CUR.ret=r.error?null:(r.data||[])}
+async function rtUp(id,o){var r=await sb.from("retos").update(o).eq("id",id);if(r.error){alert(r.error.message);return}await rtReload();redraw()}
+function rtValidar(id){if(confirm("¿Confirmás que cumplió el reto y le das el premio?"))rtUp(id,{estado:"validado",validado_en:hoy()})}
+function rtReinicio(id){rtUp(id,{inicio:hoy(),estado:"activo"})}
+async function rtDel(id){if(!confirm("¿Borrar este reto?"))return;var r=await sb.from("retos").delete().eq("id",id);if(r.error){alert(r.error.message);return}await rtReload();redraw()}
+async function rtReclamar(id){var r=await sb.rpc("reclamar_reto",{p_id:id});if(r.error){alert(r.error.message);return}await rtReload();redraw()}
+async function rtCrear(){var t=$("rt_t").value.trim(),m=+$("rt_m").value,s=Math.min(12,Math.max(1,+$("rt_s").value||1)),p=$("rt_p").value.trim(),all=$("rt_all").checked;
+ if(!t||!m||m<1||m>7){alert("Poné el nombre del reto y cuántas veces por semana (de 1 a 7).");return}
+ var ids=all?LIST.map(function(x){return x.id}):[CUR.c.id];if(all&&!confirm("¿Crear este reto para los "+ids.length+" clientes?"))return;
+ var r=await sb.from("retos").insert(ids.map(function(id){return{cliente_id:id,titulo:t,meta:m,semanas:s,premio:p||null,inicio:hoy(),estado:"activo"}}));
+ if(r.error){alert(r.error.message);return}await rtReload();redraw()}
+function retosCoachH(){
+ if(CUR.ret==null)return'<div class="card bad">Falta crear la tabla «retos» en Supabase. Pegá el contenido de retos.sql en Supabase → SQL Editor → Run.</div>';
+ var h='<div class="card"><b>Nuevo reto</b><label>Reto</label><input id="rt_t" value="Entrenar 4 veces por semana"><div class="g2"><div><label>Veces por semana</label><input id="rt_m" type="number" inputmode="numeric" value="4"></div><div><label>Semanas seguidas</label><input id="rt_s" type="number" inputmode="numeric" value="1"></div></div><label>Premio (lo elegís vos)</label><input id="rt_p" placeholder="Ej: 10% de descuento en la cuota, 5 recetas gratis"><label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="rt_all" style="width:auto"> Crear para todos los clientes</label><button class="p w" onclick="rtCrear()">🏆 Crear reto</button></div>';
+ CUR.ret.slice().reverse().forEach(function(r){h+=rtCard(r,true)});return h}
+function insH(){
+ var d=Object.keys(rtDias()).length,B=[["🌱","Primer entreno",d>=1],["🔥","5 entrenos",d>=5],["💪","10 entrenos",d>=10],["🏅","25 entrenos",d>=25],["⚖️","Primer pesaje",(CUR.w||[]).length>=1],["🍽️","Primera comida cargada",(CUR.com||[]).length>=1],["📈","Primera marca",(CUR.reg||[]).length>=1],["🏃","Primera carrera",(CUR.run||[]).length>=1]];
+ (CUR.ret||[]).filter(function(r){return r.estado=="validado"}).forEach(function(r){B.push(["🏆",r.titulo,true])});
+ var n=B.filter(function(x){return x[2]}).length;
+ return'<div class="sec">Mis insignias · '+n+" de "+B.length+'</div><div class="ins">'+B.map(function(x){return'<div class="'+(x[2]?"":"off")+'"><i>'+x[0]+"</i>"+esc(x[1])+"</div>"}).join("")+"</div>"}
+function retosCliH(){
+ var a=(CUR.ret||[]).filter(function(r){return r.estado!="validado"});
+ return(a.length?'<div class="sec">Mis retos</div>'+a.map(function(r){return rtCard(r,false)}).join(""):"")+insH()}
+var _tHoy=tHoy;
+tHoy=function(){var h=_tHoy(),k='<div class="sec">Accesos rápidos</div>',x="";try{x=retosCliH()}catch(e){}return h.indexOf(k)>=0?h.replace(k,function(){return x+k}):h+x};
+var _vDet=vDet;
+vDet=function(){var h=_vDet(),n=(CUR.ret||[]).filter(function(r){return r.estado=="pedido"}).length,x="";try{x=DP("retos","🏆 Retos y premios"+(n?" · "+n+" para validar":""),retosCoachH())}catch(e){}return h+x};
+TABK.retos="rutina";
+var _loadCur=loadCur;
+loadCur=async function(id){await _loadCur(id);try{var r=await sb.from("retos").select("*").eq("cliente_id",id).order("creado");CUR.ret=r.error?null:(r.data||[])}catch(e){CUR.ret=null}};
+var _loadPend=loadPend;
+loadPend=async function(){await _loadPend();try{var r=await sb.from("retos").select("cliente_id").eq("estado","pedido");(r.data||[]).forEach(function(x){var p=PEND[x.cliente_id]=PEND[x.cliente_id]||{f:0,c:0,m:0,w:0,p:0};p.r=(p.r||0)+1})}catch(e){}};
+var _bdg=bdg;
+bdg=function(id){var h=_bdg(id),p=PEND[id]||{};if(p.r){var t="🏆 "+p.r+" reto(s) para validar";h=h?h.replace("</div>"," · "+t+"</div>"):'<div class="bad" style="margin-top:4px">Pendiente: '+t+"</div>"}return h};
+var _pendC=pendC;
+pendC=function(c){return _pendC(c)||!!(PEND[c.id]&&PEND[c.id].r)};
+
+
+/* ===== v49: fotos reales de alimentos, GIF para el cliente, aviso del micrófono ===== */
+function fotoMap(){try{return JSON.parse(CFG.imgs_alimentos||"{}")}catch(e){return{}}}
+function fotoAl(n,css){var p=fotoMap()[norm(n)];return p?'<img data-m="'+esc(p)+'" alt="'+esc(n)+'" style="'+css+'">':""}
+var PLN=["Plato verduras","Plato proteína","Plato carbohidratos","Plato grasas"];
+function fotoPl(i,col){return fotoAl(PLN[i],"width:56px;height:56px;border-radius:12px;object-fit:cover;flex:none")||'<span style="flex:none;width:14px;height:14px;border-radius:5px;background:'+col+';margin-top:4px"></span>'}
+nutH=function(){
+ var s=NUT.filter(function(x){return x.k==NUF})[0]||NUT[0],mx=Math.max.apply(0,s.l.map(function(x){return x[2]})),
+ ch=NUT.map(function(x){return'<button class="'+(NUF==x.k?"p":"")+'" style="min-height:40px;padding:0 12px;white-space:nowrap" onclick="nuSet(\''+x.k+'\')">'+x.e+" "+x.n+'</button>'}).join("");
+ return'<div class="sec">Alimentos ricos en…</div><div class="card"><div class="chips">'+ch+'</div><p><b>'+s.e+" "+s.n+'</b><br><span class="mut">'+s.d+'</span></p><p class="mut" style="margin:4px 0">'+s.n+' aprox. por 100 g</p><div class="tiles">'+s.l.map(function(x){var pc=Math.max(6,Math.round(x[2]/mx*100)),top=fotoAl(x[1],"width:100%;height:96px;object-fit:cover;border-radius:10px")||'<div style="font-size:44px;line-height:1.1">'+x[0]+'</div>';return'<div style="background:var(--bg);border:1px solid var(--bd);border-radius:14px;padding:12px;text-align:center">'+top+'<div style="font-size:14px;margin:6px 0;min-height:36px">'+esc(x[1])+'</div><span class="tag ok" style="font-weight:700">'+String(x[2]).replace(".",",")+" "+s.u+'</span><div class="bar" style="height:6px;margin-top:8px"><i style="height:6px;width:'+pc+'%"></i></div></div>'}).join("")+'</div><p class="mut" style="font-size:13px;margin-top:10px">'+s.nota+'</p></div>'};
+function alNombres(){var o={};NUT.forEach(function(s){s.l.forEach(function(x){o[norm(x[1])]=x[1]})});PLN.forEach(function(n){o[norm(n)]=n});return o}
+async function subirAl(){var fs=$("alf").files;if(!fs.length)return;var N=alNombres(),M=fotoMap(),ok=0,no=[];
+ for(var i=0;i<fs.length;i++){$("alp").textContent="Subiendo "+(i+1)+" de "+fs.length+"…";var b=norm(fs[i].name.replace(/\.[^.]+$/,"")),k=N[b]?b:Object.keys(N).filter(function(z){return z.indexOf(b)==0})[0];if(!k){no.push(fs[i].name);continue}
+  var p=await subir(fs[i],"biblioteca",true);if(p){M[k]=p;ok++}else no.push(fs[i].name)}
+ if(ok){var v=JSON.stringify(M),r=await sb.from("config").upsert({clave:"imgs_alimentos",valor:v});if(r.error){alert(r.error.message);return}CFG.imgs_alimentos=v}
+ draw();alert(ok+" foto(s) cargada(s)."+(no.length?" Sin nombre reconocido: "+no.join(", "):""))}
+var _toolsH49=toolsH;
+toolsH=function(){var h=_toolsH49(),N=alNombres(),M=fotoMap(),f=Object.keys(N).filter(function(k){return!M[k]}).map(function(k){return N[k]});
+ return h+'<div class="card"><b>📸 Fotos de alimentos</b><p class="mut">Elegí varias fotos. El nombre de cada archivo es el alimento (ej: «pechuga-de-pollo.jpg», «frutillas.jpg»). Para el plato: «plato-proteina.jpg», «plato-verduras.jpg», «plato-carbohidratos.jpg», «plato-grasas.jpg».</p><input id="alf" type="file" accept="image/*" multiple><button class="w" onclick="subirAl()">Subir fotos</button><p id="alp" class="mut"></p>'+(f.length?'<p class="mut" style="font-size:13px">Faltan ('+f.length+'): '+esc(f.join(", "))+'</p>':'<p class="ok">Todas cargadas ✓</p>')+'</div>'};
+var _loadCur49=loadCur;
+loadCur=async function(id){await _loadCur49(id);if(!coach()){try{var e=await sb.from("ejercicios").select("*");if(!e.error&&e.data&&e.data.length)LIB=e.data.map(function(x){x.bloque=nb(x.bloque);return x})}catch(x){}}};
+}catch(e){console.error("addon v48",e)}
 </script>
 </body>
 </html>
