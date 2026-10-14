@@ -1908,6 +1908,22 @@ function clean(){try{var w=document.createTreeWalker(document.body,NodeFilter.SH
   n.nodeValue=r.replace(/^\s+/,"")})}catch(e){}}
 var _t;new MutationObserver(function(){clearTimeout(_t);_t=setTimeout(clean,30)}).observe(document.body,{childList:true,subtree:true,characterData:true});setTimeout(clean,200);
 })()}catch(e){console.error("v113",e)}
+
+/* ===== v114: fotos también en la lista de Alimentos, renombrar ejercicios, copiar nombres ===== */
+try{(function(){
+var _al=alNombres;alNombres=function(){var o=_al();try{FD.forEach(function(f){var k=norm(f[0]);if(!o[k])o[k]=f[0]})}catch(e){}return o};
+fListH=function(){var q=norm(FQ),l=[];FD.forEach(function(f,i){if(FCT&&f[1]!==FCT)return;if(q&&norm(f[0]).indexOf(q)<0)return;l.push([f,i])});
+ if(!l.length)return '<div class="card mut">No encontré ese alimento.</div>';
+ return l.map(function(p){var f=p[0],im=fotoAl(f[0],"width:52px;height:52px;border-radius:10px;object-fit:cover;flex:none");return '<button class="fr" style="--c:#2ecc8f" onclick="abrirAl('+p[1]+')">'+im+'<span style="flex:1;min-width:0"><b>'+esc(f[0])+'</b><div class="mut">'+f[2]+' kcal · P '+f[3]+' · C '+f[4]+' · G '+f[5]+'</div></span><span class="mut">›</span></button>'}).join("")};
+fRender=function(){var e=$("fl");if(e){e.innerHTML=fListH();try{imgs()}catch(x){}}};
+var _d114=draw;draw=function(){_d114();try{imgs()}catch(e){}};
+var _libH114=libH;libH=function(){var h=_libH114();
+ h=h.replace(/<button onclick="editLib\('([^']+)'\)">/g,function(m,id){return '<button onclick="renLib(\''+id+'\')">Renombrar</button>'+m});
+ return h.replace('<h2>Mi biblioteca de ejercicios</h2>','<h2>Mi biblioteca de ejercicios</h2><button class="w" onclick="copiarNombres()">Copiar la lista de nombres de mis ejercicios</button>')};
+window.renLib=async function(id){var e=LIB.find(function(z){return z.id==id});if(!e)return;var t=prompt("Nuevo nombre para «"+e.nombre+"»:",e.nombre);if(!t||!t.trim()||t.trim()==e.nombre)return;
+ var r=await sb.from("ejercicios").update({nombre:t.trim()}).eq("id",id);if(r.error){alert(r.error.message);return}await loadList();draw();toast("Renombrado. Las rutinas ya armadas conservan el nombre viejo.")};
+window.copiarNombres=async function(){var t=LIB.map(function(e){return e.nombre}).sort(function(a,b){return a.localeCompare(b)}).join("\n");try{await navigator.clipboard.writeText(t);toast("Copiados "+LIB.length+" nombres. Pegalos en una nota o en el chat")}catch(e){prompt("Copiá la lista:",t)}};
+})()}catch(e){console.error("v114",e)}
 </script>
 </body>
 </html>
