@@ -1774,6 +1774,70 @@ planNH=function(){var c=CUR.c,k=kcal(c),O={deficit:"Déficit calórico",mantener
 
 }catch(e){console.error("addon v111",e)}
 
+
+/* ===== v112: biblioteca en lote estable, fotos de alimentos, chat desde el foco, análisis IA, GIF en rutinas, foto de galería ===== */
+try{(function(){
+function stripCard(h,mk){var i=h.indexOf(mk);if(i<0)return h;var st=h.lastIndexOf('<div class="card">',i);if(st<0)return h;var d=0,re=/<div\b|<\/div>/g,m;re.lastIndex=st;while((m=re.exec(h))){if(m[0]=="</div>"){d--;if(d==0)return h.slice(0,st)+h.slice(re.lastIndex)}else d++}return h}
+
+/* 1) Biblioteca: sin “GIFs gratis” ni “Traducir con IA” */
+var _libH112=libH;libH=function(){var h=_libH112();h=stripCard(h,"GIFs gratis de ExerciseDB");h=stripCard(h,"Traducir con IA");return h};
+
+/* 2) Subida en lote: no se corta si la pantalla se redibuja; muestra el motivo de cada error */
+bulkLib=async function(){var inp=$("lbulk");if(!inp||!inp.files.length){toast("Primero elegí los archivos");return}
+ var fs=Array.prototype.slice.call(inp.files),ok=0,nw=0,er=0,errs=[],wl=null,say=function(t){var e=$("lprog");if(e)e.textContent=t};
+ try{wl=await navigator.wakeLock.request("screen")}catch(e){}
+ toast("Subiendo "+fs.length+" archivos. No cierres la app hasta que termine.");
+ for(var i=0;i<fs.length;i++){var f=fs[i];try{say("Subiendo "+(i+1)+" de "+fs.length+"…");
+  var base=f.name.replace(/\.[^.]+$/,""),nm=norm(base).replace(/ \d+$/,""),g=await subir(f,"biblioteca",true);
+  if(!g){er++;errs.push(f.name+": "+(SUBERR||"no subió"));continue}
+  var e=LIB.find(function(z){return norm(z.nombre)==nm});
+  if(e){var r=await sb.from("ejercicios").update({gif:g}).eq("id",e.id);if(r.error){er++;errs.push(f.name+": "+r.error.message)}else{ok++;e.gif=g}}
+  else{var t=base.replace(/[-_]+/g," ").replace(/\s+\d+\s*$/,"").trim().toLowerCase();t=t.charAt(0).toUpperCase()+t.slice(1);
+   var r2=await sb.from("ejercicios").insert({nombre:t,bloque:"Principal",grupo:"",plano:"",gif:g});if(r2.error){er++;errs.push(f.name+": "+r2.error.message)}else{nw++;LIB.push({id:"x"+i,nombre:t,bloque:"Principal",gif:g})}}
+ }catch(x){er++;errs.push(f.name+": "+(x&&x.message||x))}}
+ try{if(wl)wl.release()}catch(e){}
+ await loadList();try{await propagarGifs(true)}catch(e){}draw();
+ alert("Listo: "+ok+" actualizados, "+nw+" nuevos"+(er?", "+er+" con error:\n"+errs.slice(0,4).join("\n"):"")+".")};
+
+/* 3) Actualizar GIF en rutinas ya cargadas: ahora trae los GIF nuevos y avisa siempre */
+propagarGifs=async function(q){try{if(!q)toast("Actualizando rutinas…");await loadList();
+ var r=await sb.from("plan_dias").select("id,items").gte("fecha",addDays(hoy(),-30));if(r.error){if(!q)alert(r.error.message);return 0}
+ var n=0;for(var i=0;i<(r.data||[]).length;i++){var d=r.data[i],ch=false,its=(d.items||[]).map(function(x){if(!x||typeof x!=="object")return x;var l=LIB.find(function(z){return norm(z.nombre)==norm(x.nombre)});if(!l)return x;var y=Object.assign({},x);["gif","explicacion","video","plano","grupo"].forEach(function(k){if(l[k]&&y[k]!==l[k]&&(k=="gif"||!y[k])){y[k]=l[k];ch=true}});return y});
+  if(ch){var u=await sb.from("plan_dias").update({items:its}).eq("id",d.id);if(!u.error)n++}}
+ if(!q){draw();alert(n?"Listo: actualicé "+n+" día(s) de rutina.":"No hay nada para actualizar: ningún ejercicio de las rutinas tiene el mismo nombre que uno de la biblioteca con GIF nuevo.")}return n}catch(e){if(!q)alert("Error: "+(e.message||e));return 0}};
+
+/* 4) Fotos de alimentos: reconoce «atun_jpg.png», «frutilla», etc. */
+subirAl=async function(){var inp=$("alf"),fs=inp?Array.prototype.slice.call(inp.files):[];if(!fs.length){toast("Primero elegí las fotos");return}
+ var N=alNombres(),M=fotoMap(),ok=0,no=[],say=function(t){var e=$("alp");if(e)e.textContent=t},K=Object.keys(N),sg=function(x){return x.split(" ").map(function(w){return w.replace(/(es|s)$/,"")}).join(" ")};
+ for(var i=0;i<fs.length;i++){say("Subiendo "+(i+1)+" de "+fs.length+"…");
+  var b0=norm(fs[i].name.replace(/\.[^.]+$/,"")),b=b0.replace(/\b(jpg|jpeg|png|webp|heic|copia|copy|img)\b/g,"").replace(/\s+/g," ").trim(),
+  k=N[b0]?b0:N[b]?b:K.filter(function(z){return sg(z)==sg(b)})[0]||K.filter(function(z){return z.indexOf(b)==0||b.indexOf(z)==0})[0];
+  if(!k){no.push(fs[i].name);continue}
+  var p=await subir(fs[i],"biblioteca",true);if(p){M[k]=p;ok++}else no.push(fs[i].name+" ("+(SUBERR||"error")+")")}
+ if(ok){var v=JSON.stringify(M),r=await sb.from("config").upsert({clave:"imgs_alimentos",valor:v});if(r.error){alert(r.error.message);return}CFG.imgs_alimentos=v}
+ draw();alert(ok+" foto(s) cargada(s)."+(no.length?"\nNo reconocí o no subieron: "+no.join(", "):""))};
+function vAlim(){var N=alNombres(),M=fotoMap(),K=Object.keys(N),f=K.filter(function(k){return!M[k]}).map(function(k){return N[k]}),dn=K.filter(function(k){return M[k]});
+ return '<button onclick="go(\'lista\')">← Inicio</button><h1>Biblioteca de alimentos</h1><div class="card"><b>📸 Subir fotos</b><p class="mut">Elegí varias fotos. El nombre del archivo es el alimento (ej: «pechuga-de-pollo.jpg»). Para el plato: «plato-proteina», «plato-verduras», «plato-carbohidratos», «plato-grasas».</p><input id="alf" type="file" accept="image/*" multiple><button class="p w" onclick="subirAl()">Subir fotos</button><p id="alp" class="mut"></p></div>'
+ +(f.length?'<div class="card"><b>Faltan ('+f.length+')</b><p class="mut">'+esc(f.join(", "))+'</p></div>':'<p class="ok">Todas cargadas ✓</p>')
+ +(dn.length?'<div class="card"><b>Cargadas ('+dn.length+')</b><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px">'+dn.map(function(k){return '<div style="text-align:center;font-size:12px"><img data-m="'+esc(M[k])+'" alt="" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px"><div>'+esc(N[k])+'</div></div>'}).join("")+'</div></div>':"")+cnav()}
+var _draw112=draw;draw=function(){if(V==="alim"&&coach()){$("app").innerHTML=vAlim();$("app").style.paddingBottom="90px";try{imgs()}catch(e){}return}_draw112()};
+var _vLista112=vLista;vLista=function(){var h=_vLista112(),k=h.indexOf("go('biblio')");if(k<0)return h;var e=h.indexOf("</button>",k)+9;return h.slice(0,e)+mcard("image","Biblioteca de alimentos","Fotos de comidas y platos","#2ecc8f","go('alim')")+h.slice(e)};
+var _toolsH112=toolsH;toolsH=function(){return stripCard(_toolsH112(),"Fotos de alimentos")+'<div class="card"><button class="w" onclick="go(\'alim\')">📸 Ir a Biblioteca de alimentos</button></div>'};
+var _dpN112=dpNutri;dpNutri=function(){var h=_dpN112();return coach()?'<button class="w" onclick="go(\'alim\')">📸 Biblioteca de alimentos (cargar fotos)</button>'+h:h};
+
+/* 5) Chat del alumno vuelve a ser una pestaña (el foco y la lista de chats lo abren) */
+tabsH=function(){return '<div style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0">'+[["rutina","🏋 Rutina"],["nutri","🍽 Nutrición"],["prog","📈 Progreso"],["chat","💬 Chat"],["ficha","📋 Ficha"]].map(function(t){return '<button class="'+(CT==t[0]?"p":"")+'" style="min-height:42px;padding:0 12px" onclick="CT=\''+t[0]+'\';draw();scrollTo(0,0)">'+t[1]+'</button>'}).join("")+'</div>'};
+
+/* 6) Análisis de cuerpo: con un clic usa las últimas fotos y siempre avisa qué pasó */
+var _pa112=pedirAnalisis;pedirAnalisis=async function(auto){if(auto||!coach())return _pa112(auto);
+ var F=anFotos();if(!F.length){toast("Todavía no hay fotos de progreso de "+CUR.c.nombre+". Cargalas en Progreso → Fotos.");return}
+ if(!Object.keys(ANSEL).some(function(k){return ANSEL[k]})){var d=String(F[0].creado).slice(0,10);ANSEL={};F.filter(function(a){return String(a.creado).slice(0,10)==d}).slice(0,4).forEach(function(a){ANSEL[a.id]=true})}
+ if(!$("anst")){var s=document.createElement("span");s.id="anst";s.style.display="none";document.body.appendChild(s)}
+ toast("Analizando las fotos… puede tardar unos segundos");ANERR="";await analizarSel();if(ANERR)alert(ANERR)};
+
+/* 7) Cliente: sacar foto o elegir una de la galería */
+var _frH112=fotoRapH;fotoRapH=function(){return _frH112().replace('<p id="frs"','<input id="frg" type="file" accept="image/*" hidden onchange="fotoRap(this)"><button class="w" onclick="$(\'frg\').click()">🖼 Elegir una foto que ya tengo</button><p id="frs"')};
+})()}catch(e){console.error("v112",e)}
 </script>
 </body>
 </html>
