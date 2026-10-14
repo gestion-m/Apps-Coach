@@ -1838,6 +1838,76 @@ var _pa112=pedirAnalisis;pedirAnalisis=async function(auto){if(auto||!coach())re
 /* 7) Cliente: sacar foto o elegir una de la galería */
 var _frH112=fotoRapH;fotoRapH=function(){return _frH112().replace('<p id="frs"','<input id="frg" type="file" accept="image/*" hidden onchange="fotoRap(this)"><button class="w" onclick="$(\'frg\').click()">🖼 Elegir una foto que ya tengo</button><p id="frs"')};
 })()}catch(e){console.error("v112",e)}
+
+/* ===== v113: nombrar videos/fotos en la app, ver videos, chats, macros automáticos, sin emojis ===== */
+try{(function(){
+var STGL=[],STGA=[];
+function strip(h,a,b){return h.split(a).join(b)}
+function nPre(f){var b=f.name.replace(/\.[^.]+$/,"");if(/^[\d_\-\s]+$/.test(b)||/^(vid|img|pxl|mvimg|screen|video)/i.test(b))return"";b=b.replace(/[-_]+/g," ").replace(/\s+\d+\s*$/,"").trim().toLowerCase();return b.charAt(0).toUpperCase()+b.slice(1)}
+
+/* Biblioteca: se habla de videos (no GIF) y el nombre se escribe en la app */
+var _libH113=libH;libH=function(){var h=_libH113();
+ h=h.replace('<input id="lbulk" type="file" accept="image/*,video/*" multiple>','<input id="lbulk" type="file" accept="video/*,image/*" multiple onchange="stageLib(this)"><div id="lstage"></div>');
+ h=h.replace(/Elegí varios archivos \(GIF, MP4 o fotos\)[^<]*/,"Elegí uno o varios videos y escribí el nombre de cada ejercicio. Si ya existe en la biblioteca se le agrega el video; si no, se crea. Tip: elegilos desde «Archivos» o «Galería».");
+ h=strip(h,'onclick="bulkLib()">Subir archivos','onclick="bulkLib()">Subir videos');
+ h=strip(h,"Cargar GIFs o videos en lote","Cargar videos");h=strip(h,"⬆ GIF","⬆ Video");h=strip(h,"Sin GIF","Sin video");h=strip(h,"tienen GIF o video","tienen video");h=strip(h,"GIF o video corto (archivo)","Video corto (archivo)");
+ h=h.replace(/Tocá [^<]*? en cada uno para subir el tuyo\./,"Tocá «⬆ Video» en cada uno para subir el tuyo. Tocá la miniatura para verlo.");
+ return h};
+function stageLib(inp){STGL=Array.prototype.slice.call(inp.files);var e=$("lstage");if(!e)return;
+ e.innerHTML='<datalist id="lnames">'+LIB.map(function(x){return '<option value="'+esc(x.nombre)+'">'}).join("")+'</datalist>'+STGL.map(function(f,i){var u=URL.createObjectURL(f),v=/^video/.test(f.type);return '<div style="margin:12px 0">'+(v?'<video src="'+u+'" muted playsinline preload="metadata" controls style="width:100%;max-height:200px;border-radius:10px;background:#000"></video>':'<img src="'+u+'" style="width:100%;max-height:200px;object-fit:contain;border-radius:10px">')+'<input id="sn'+i+'" list="lnames" placeholder="Nombre del ejercicio (ej: Remo bajo en polea)" value="'+esc(nPre(f))+'"></div>'}).join("")}
+window.stageLib=stageLib;
+bulkLib=async function(){if(!STGL.length){toast("Primero elegí los videos");return}
+ var fs=STGL,ok=0,nw=0,er=0,errs=[],wl=null,say=function(t){var e=$("lprog");if(e)e.textContent=t};
+ try{wl=await navigator.wakeLock.request("screen")}catch(e){}
+ toast("Subiendo "+fs.length+" archivo(s). No cierres la app hasta que termine.");
+ for(var i=0;i<fs.length;i++){var f=fs[i],el=$("sn"+i),t=(el&&el.value||"").trim();
+  if(!t){er++;errs.push(f.name+": le falta el nombre");continue}
+  try{say("Subiendo "+(i+1)+" de "+fs.length+"…");var g=await subir(f,"biblioteca",true);if(!g){er++;errs.push(t+": "+(SUBERR||"no subió"));continue}
+   var e=LIB.find(function(z){return norm(z.nombre)==norm(t)});
+   if(e){var r=await sb.from("ejercicios").update({gif:g}).eq("id",e.id);if(r.error){er++;errs.push(t+": "+r.error.message)}else{ok++;e.gif=g}}
+   else{var r2=await sb.from("ejercicios").insert({nombre:t,bloque:"Principal",grupo:"",plano:"",gif:g});if(r2.error){er++;errs.push(t+": "+r2.error.message)}else{nw++;LIB.push({id:"x"+i,nombre:t,bloque:"Principal",gif:g})}}
+  }catch(x){er++;errs.push(t+": "+(x&&x.message||x))}}
+ try{if(wl)wl.release()}catch(e){}STGL=[];
+ await loadList();try{await propagarGifs(true)}catch(e){}draw();
+ alert("Listo: "+ok+" actualizados, "+nw+" nuevos"+(er?", "+er+" con error:\n"+errs.slice(0,4).join("\n"):"")+".")};
+
+/* Ver el video al tocar la miniatura */
+document.addEventListener("click",function(ev){var t=ev.target.closest&&ev.target.closest(".exth");if(!t||t.classList.contains("ph")||V!=="biblio")return;var u=t.currentSrc||t.src;if(!u)return;
+ modalEj('<div class="row"><b>Vista previa</b><button onclick="cerrarEj()">Cerrar</button></div>'+(t.tagName=="VIDEO"?'<video src="'+u+'" controls autoplay loop playsinline style="width:100%;border-radius:12px;margin-top:10px"></video>':'<img src="'+u+'" style="width:100%;border-radius:12px;margin-top:10px">'))});
+
+/* Fotos de alimentos: elegís qué alimento es cada foto */
+function guessAl(name,N){var K=Object.keys(N),sg=function(x){return x.split(" ").map(function(w){return w.replace(/(es|s)$/,"")}).join(" ")},b0=norm(name.replace(/\.[^.]+$/,"")),b=b0.replace(/\b(jpg|jpeg|png|webp|heic|copia|copy|img)\b/g,"").replace(/\s+/g," ").trim();
+ if(!b||/^[\d ]+$/.test(b))return"";return N[b0]?b0:N[b]?b:K.filter(function(z){return sg(z)==sg(b)})[0]||K.filter(function(z){return z.indexOf(b)==0||b.indexOf(z)==0})[0]||""}
+function stageAl(inp){STGA=Array.prototype.slice.call(inp.files);var e=$("alst");if(!e)return;var N=alNombres(),ks=Object.keys(N).sort(function(a,b){return N[a].localeCompare(N[b])});
+ e.innerHTML=STGA.map(function(f,i){var g=guessAl(f.name,N);return '<div style="display:flex;gap:10px;align-items:center;margin:10px 0"><img src="'+URL.createObjectURL(f)+'" style="width:64px;height:64px;object-fit:cover;border-radius:10px;flex:none"><select id="sa'+i+'"><option value="">¿Qué alimento es?</option>'+ks.map(function(k){return '<option value="'+esc(k)+'"'+(k==g?" selected":"")+'>'+esc(N[k])+'</option>'}).join("")+'</select></div>'}).join("")}
+window.stageAl=stageAl;
+subirAl=async function(){if(!STGA.length){toast("Primero elegí las fotos");return}
+ var M=fotoMap(),ok=0,no=[],say=function(t){var e=$("alp");if(e)e.textContent=t};
+ for(var i=0;i<STGA.length;i++){var k=($("sa"+i)||{}).value;if(!k){no.push(STGA[i].name+" (elegí qué alimento es)");continue}
+  say("Subiendo "+(i+1)+" de "+STGA.length+"…");var p=await subir(STGA[i],"biblioteca",true);if(p){M[k]=p;ok++}else no.push(STGA[i].name+" ("+(SUBERR||"error")+")")}
+ if(ok){var v=JSON.stringify(M),r=await sb.from("config").upsert({clave:"imgs_alimentos",valor:v});if(r.error){alert(r.error.message);return}CFG.imgs_alimentos=v}
+ STGA=[];draw();alert(ok+" foto(s) cargada(s)."+(no.length?"\nNo se subieron: "+no.join(", "):""))};
+var _d113=draw;draw=function(){_d113();if(V==="alim"&&coach()){var i=$("alf");if(i&&!$("alst")){i.setAttribute("onchange","stageAl(this)");i.insertAdjacentHTML("afterend",'<div id="alst"></div>')}}};
+
+/* Chats del coach: no quedarse en «Cargando…» */
+loadChats=async function(){try{var r=await sb.from("mensajes").select("*").order("creado",{ascending:false}).limit(500);if(r.error){CHATS=[];toast("No pude leer los chats: "+r.error.message);return}
+ var seen={},L=[];(r.data||[]).forEach(function(m){if(!seen[m.cliente_id]){seen[m.cliente_id]=1;L.push(m)}});CHATS=L;CHUN=L.filter(function(m){return m.de=="cliente"&&(!csGet(m.cliente_id)||new Date(m.creado)>new Date(csGet(m.cliente_id)))}).length}catch(e){CHATS=CHATS||[]}};
+
+/* Comidas: calorías y macros se completan solos al elegir la foto */
+try{var _inv=sb.functions.invoke.bind(sb.functions);sb.functions.invoke=async function(n,o){var r=await _inv(n,o);
+ try{if(n=="analizar-plato"&&r&&r.data&&!r.data.error&&!r.data.kcal){var q=r.data,t=String(q.texto||q.descripcion||""),g=function(re){var m=t.match(re);return m?parseFloat(m[1].replace(",",".")):0};
+  q.kcal=+(q.calorias||q.calories||q.kcal_total)||g(/(\d[\d.,]*)\s*kcal/i);q.proteina_g=+(q.proteina_g||q.proteinas||q.proteina||q.prot)||g(/\bP\s*(\d[\d.,]*)/);q.carbos_g=+(q.carbos_g||q.carbohidratos||q.carbos||q.carb)||g(/\bC\s*(\d[\d.,]*)/);q.grasas_g=+(q.grasas_g||q.grasas||q.gras)||g(/\bG\s*(\d[\d.,]*)/)}}catch(e){}return r}}catch(e){}
+var _cH113=cargarH;cargarH=function(){return _cH113().replace('<input id="nf" type="file" accept="image/*">','<input id="nf" type="file" accept="image/*" onchange="calcFoto()">')};
+
+/* Sin emojis en toda la app */
+var EM=/[\p{Extended_Pictographic}\u{1F3FB}-\u{1F3FF}\uFE0F\u200D\u20E3]/gu,KEEP="✔✖",MAP={"📝":"Editar","🎞":"Video","📷":"Foto","⚠":"Dolor","💪":"Músculos","ℹ":"Info","🎤":"Dictar","⏹":"Parar","🔁":"Repetir","🗑":"Borrar","📄":"PDF","💬":"Chat","🔔":"Avisos","👁":"Ver"};
+function clean(){try{var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null),n,L=[];while((n=w.nextNode()))L.push(n);
+ L.forEach(function(n){var v=n.nodeValue;if(!v||!EM.test(v)){EM.lastIndex=0;return}EM.lastIndex=0;var p=n.parentNode;if(!p||/^(SCRIPT|STYLE|TEXTAREA)$/.test(p.tagName)||(p.closest&&p.closest(".b")))return;
+  var r=v.replace(EM,function(c){return KEEP.indexOf(c)>=0?c:""});
+  if(!r.trim()){var k=v.trim().replace(/\uFE0F/g,"").charAt(0),isB=p.closest&&p.closest("button,a,summary");if(isB){n.nodeValue=MAP[k]||"Ver"}else if(!p.children.length){p.style.display="none"}return}
+  n.nodeValue=r.replace(/^\s+/,"")})}catch(e){}}
+var _t;new MutationObserver(function(){clearTimeout(_t);_t=setTimeout(clean,30)}).observe(document.body,{childList:true,subtree:true,characterData:true});setTimeout(clean,200);
+})()}catch(e){console.error("v113",e)}
 </script>
 </body>
 </html>
