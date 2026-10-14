@@ -1625,5 +1625,155 @@ buscarGifs=async function(){var L=LIB.filter(function(e){return!e.gif}),ok=0,i=0
  gMsg(m);var p=$("gprog");if(p&&p.scrollIntoView)p.scrollIntoView({block:"center"})};
 }catch(e){console.error("addon v110",e)}
 </script>
+<script>
+/* ===== v111: pagos del cliente, chat sin duplicar, marcas con gráfica y PDF, atajos del foco, análisis IA con foto elegida, menú único ===== */
+try{
+
+/* ---------- 1) Chat: solo abajo (se saca la pestaña de arriba) ---------- */
+tabsH=function(){return '<div style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0">'+[["rutina","🏋 Rutina"],["nutri","🍽 Nutrición"],["prog","📈 Progreso"],["ficha","📋 Ficha"]].map(function(t){return '<button class="'+(CT==t[0]?"p":"")+'" style="min-height:42px;padding:0 12px" onclick="CT=\''+t[0]+'\';draw();scrollTo(0,0)">'+t[1]+'</button>'}).join("")+'</div>'};
+
+/* ---------- 2) Pagos del cliente ---------- */
+function cmpList(){return(CUR.adj||[]).filter(function(a){return a.tipo=="Comprobante de pago"})}
+function payHoyH(){
+ var c=CUR.c,dl=c.vence?Math.ceil((new Date(c.vence+"T12:00")-new Date())/864e5):null,L=cmpList(),u=L[L.length-1],pend=u&&!u.devolucion,soon=dl!==null&&dl<=7;
+ var h='<div class="card"><div class="row"><b class="tt" style="font-size:24px">💳 Mi plan</b><span class="tag '+(soon?"bad":"ok")+'">'+(c.vence?(dl<0?"Vencido":"Vence "+fmt(c.vence).slice(0,5)):"Al día")+'</span></div>';
+ if(pend)h+='<p class="ok">✓ Enviaste tu comprobante el '+fmt(String(u.creado).slice(0,10))+'. Tu coach lo va a confirmar.</p>';
+ else if(soon)h+='<p>'+(dl<0?"Tu plan ya venció.":"Tu plan vence en "+dl+(dl==1?" día.":" días."))+' Pagalo acá abajo y subí el comprobante: queda registrado.</p>';
+ else h+='<p class="mut">Cuando llegue el momento, pagás y subís el comprobante desde acá.</p>';
+ h+='</div>';
+ if(soon&&!pend)h+=pagarH();else if(!pend)h+='<button class="w" onclick="goTab(\'mas\')">💳 Pagar / enviar comprobante</button>';
+ return h}
+var _tHoy111=tHoy;
+tHoy=function(){var h=_tHoy111(),k='<div class="sec">Tu entrenamiento de hoy</div>',x="";try{x=payHoyH()}catch(e){}return h.indexOf(k)>=0?h.replace(k,function(){return x+k}):h+x};
+var _vCli111=vCli;
+vCli=function(){var h=_vCli111();if(TAB=="mas"&&!coach()&&!(CFG.link_pago||CFG.alias_pago)){try{h=h.replace("<h1>Más</h1>",function(){return '<h1>Más</h1><p class="mut">Tu coach todavía no cargó el link o alias de pago. Pedíselos por el chat y subí acá el comprobante.</p>'+pagarH()})}catch(e){}}return h};
+subirCmp=async function(){var f=$("cmp").files[0];if(!f){alert("Elegí el comprobante.");return}var p=await subir(f);if(!p)return;
+ var r=await sb.from("adjuntos").insert({cliente_id:CUR.c.id,tipo:"Comprobante de pago",plano:"",nota:"Pago "+fmt(hoy()),path:p});if(r.error){alert(r.error.message);return}
+ await sb.from("mensajes").insert({cliente_id:CUR.c.id,de:"cliente",texto:"💳 Te envié el comprobante de pago."});
+ await loadCur(CUR.c.id);redraw();toast("✓ Comprobante enviado. Tu coach lo va a confirmar.")};
+/* coach: ve los comprobantes dentro del pago y, al confirmar, queda registrado */
+function compH(){var L=cmpList().slice().reverse();if(!L.length)return'<p class="mut">Sin comprobantes subidos.</p>';
+ return'<b>Comprobantes ('+L.length+')</b>'+L.map(function(a){var pdf=/\.pdf$/i.test(a.path||"");return'<div style="margin:8px 0;border-top:1px solid var(--bd);padding-top:8px"><div class="row"><span>'+fmt(String(a.creado).slice(0,10))+'</span><span class="tag '+(a.devolucion?"ok":"bad")+'">'+(a.devolucion?"Confirmado":"Por confirmar")+'</span></div>'+(pdf?'<button class="w" data-p="'+esc(a.path)+'" onclick="ver(this,this.dataset.p)">Ver comprobante</button><div></div>':'<img class="gifx" data-p="'+esc(a.path)+'" alt="">')+'</div>'}).join("")}
+var _vDet111=vDet;
+vDet=function(){var h=_vDet111();try{h=h.replace('<div class="card"><div class="row"><b>Pago</b>','<div class="card" id="pagocard"><div class="row"><b>Pago</b>').replace('<p class="mut">Si no pagó o venció, el cliente no ve su plan.</p></div>',function(){return'<p class="mut">Si no pagó o venció, el cliente no ve su plan.</p>'+compH()+'</div>'})}catch(e){}return h};
+async function cmpOk(id){try{await sb.from("adjuntos").update({devolucion:"Pago confirmado"}).eq("cliente_id",id).eq("tipo","Comprobante de pago").is("devolucion",null)}catch(e){}}
+var _pagar111=pagar;
+pagar=async function(){var id=CUR&&CUR.c&&CUR.c.id;await _pagar111();if(id){await cmpOk(id);try{await loadCur(id)}catch(e){}redraw()}};
+var _pagoRapido111=pagoRapido;
+pagoRapido=async function(id){await _pagoRapido111(id);await cmpOk(id)};
+var _loadPend111=loadPend;
+loadPend=async function(){await _loadPend111();try{var r=await sb.from("adjuntos").select("cliente_id").eq("tipo","Comprobante de pago").is("devolucion",null),seen={};
+ (r.data||[]).forEach(function(x){var c=LIST.find(function(z){return z.id==x.cliente_id});if(c&&pagoOk(c)&&porV(c)&&!seen[c.id]){seen[c.id]=1;var p=PEND[c.id]=PEND[c.id]||{f:0,c:0,m:0,w:0,p:0};p.p++}})}catch(e){}};
+
+/* ---------- 3) Foto inicial / mensual: lleva directo a donde se sube ---------- */
+var _fotoIni111=fotoIniH;
+fotoIniH=function(){return _fotoIni111().replace("MT='Foto inicial';goTab('prog')","irFotos('Foto inicial')")};
+var _fotoMes111=fotoMesH;
+fotoMesH=function(){return _fotoMes111().replace("MT='Foto de progreso (mensual)';goTab('prog')","irFotos('Foto de progreso (mensual)')")};
+
+/* ---------- 4) Marcas de ejercicios: buscador, gráfica, comparación y PDF ---------- */
+var RGQ="",RGS="";
+function regData(ej){var dm={};(CUR.reg||[]).forEach(function(r){if(r.ejercicio!=ej)return;var d=ymd(new Date(r.creado)),o=dm[d]||(dm[d]={d:d,kg:0,reps:0,n:0,e:0,s:[]}),kg=+r.kg||0,rp=+r.reps||0;o.n++;o.s.push(rp+"x"+kg);o.e=Math.max(o.e,kg*(1+rp/30));if(kg>o.kg||(kg==o.kg&&rp>o.reps)){o.kg=kg;o.reps=rp}});return Object.keys(dm).sort().map(function(k){return dm[k]})}
+function regVer(ds){if(ds.length<2)return{t:"Pocos datos todavía: anotá más sesiones para ver la tendencia.",c:"mut"};
+ var n=Math.max(1,Math.min(3,Math.floor(ds.length/2))),av=function(a){return a.reduce(function(s,x){return s+x.e},0)/a.length},l=av(ds.slice(-n)),p=av(ds.slice(-2*n,-n)),pc=p?(l-p)/p*100:0;
+ return pc>2.5?{t:"📈 Venís progresando (+"+Math.round(pc)+"% de fuerza estimada).",c:"ok"}:pc<-2.5?{t:"📉 Bajó la carga ("+Math.round(pc)+"% de fuerza estimada).",c:"bad"}:{t:"➖ Estancado: la carga se mantiene estable.",c:"mut"}}
+function regCmp(ds){var t=addDays(hoy(),-30),a=null;ds.forEach(function(d){if(d.d<=t)a=d});var l=ds[ds.length-1],lb=a?"Hace ~1 mes":"Primera sesión";if(!a)a=ds[0];return{a:a,l:l,lb:lb}}
+function regDet(e){var ds=regData(e);if(!ds.length)return"";var v=regVer(ds),c=regCmp(ds),df=Math.round((c.l.kg-c.a.kg)*10)/10;
+ return'<div class="card"><b>'+esc(e)+'</b><p class="'+v.c+'" style="margin:6px 0">'+v.t+'</p>'
+ +(ds.length>1?'<div class="row" style="align-items:flex-start"><div><span class="mut">'+c.lb+' ('+fmt(c.a.d).slice(0,5)+')</span><br><b>'+c.a.kg+' kg × '+c.a.reps+'</b></div><div style="text-align:right"><span class="mut">Última ('+fmt(c.l.d).slice(0,5)+')</span><br><b>'+c.l.kg+' kg × '+c.l.reps+'</b></div></div><p class="mut" style="margin:4px 0">Diferencia: '+(df>0?"+":"")+df+' kg</p>':'<p class="mut">Una sola sesión anotada ('+fmt(c.l.d)+'): '+c.l.kg+' kg × '+c.l.reps+'.</p>')
+ +'<p class="mut" style="margin:8px 0 0">Peso máximo por sesión</p>'+lineC(ds.map(function(d){return{f:d.d,v:d.kg}}),"kg")
+ +'<p class="mut" style="margin:8px 0 0">Repeticiones con ese peso</p>'+lineC(ds.map(function(d){return{f:d.d,v:d.reps}}),"reps")
+ +'<details><summary class="mut" style="padding:8px 0;cursor:pointer">Ver registro completo ('+ds.length+' sesiones)</summary>'+ds.slice().reverse().slice(0,40).map(function(d){return'<div style="margin:6px 0;border-top:1px solid var(--bd);padding-top:6px"><div class="row"><b>'+fmt(d.d)+'</b><span class="mut">mejor: '+d.kg+' kg × '+d.reps+'</span></div><div class="mut">'+d.n+(d.n==1?" serie: ":" series: ")+d.s.join(" · ").replace(/x/g," × ")+' kg</div></div>'}).join("")+'</details>'
+ +'<button class="p w" data-e="'+esc(e)+'" onclick="pdfEj(this.dataset.e)">⬇ Descargar PDF</button></div>'}
+function rgListH(){var g={};(CUR.reg||[]).forEach(function(r){g[r.ejercicio]=1});var k=Object.keys(g).sort(),q=norm(RGQ),l=k.filter(function(e){return!q||norm(e).indexOf(q)>=0});
+ if(!l.length)return'<div class="card mut">No encontré ese ejercicio entre tus marcas.</div>';
+ if(RGS&&l.indexOf(RGS)>=0)return(l.length>1?'<button class="w" onclick="RGS=\'\';redraw()">← Todos los ejercicios</button>':"")+regDet(RGS);
+ if(l.length==1&&q)return regDet(l[0]);
+ return l.map(function(e){var ds=regData(e),u=ds[ds.length-1],v=regVer(ds);return'<button class="fr" style="--c:#ff6b3d" data-e="'+esc(e)+'" onclick="RGS=this.dataset.e;redraw()"><span style="flex:1;min-width:0"><b>'+esc(e)+'</b><div class="mut">Última: '+u.kg+' kg × '+u.reps+' · '+ds.length+(ds.length==1?" sesión":" sesiones")+'</div><div class="'+v.c+'" style="font-size:13px">'+v.t+'</div></span><span class="mut">›</span></button>'}).join("")}
+function rgRender(){var e=$("rgl");if(e)e.innerHTML=rgListH()}
+regH=function(){if(!(CUR.reg||[]).length)return'<p class="mut">Todavía no hay cargas anotadas. Se anotan en <b>Entreno</b>, debajo de cada ejercicio principal: reps y kg.</p>';
+ return'<input id="rgq" type="search" placeholder="🔍 Buscar ejercicio (ej: peso muerto)" value="'+esc(RGQ)+'" oninput="RGQ=this.value;RGS=\'\';rgRender()"><div id="rgl">'+rgListH()+'</div>'};
+function pdfEj(e){var ds=regData(e),c=CUR.c;if(!ds.length)return;var v=regVer(ds),cp=regCmp(ds),o="",X=function(x,y,s,t,b){o+="BT /"+(b?"F2":"F1")+" "+s+" Tf "+x+" "+y+" Td ("+pe(t)+") Tj ET\n"};
+ var clean=function(t){return String(t).replace(/[📈📉➖]/gu,"").trim()};
+ X(50,800,20,"Progreso: "+e,1);X(50,780,11,c.nombre+" - "+fmt(hoy()),0);
+ X(50,758,12,clean(v.t),1);
+ X(50,738,11,cp.lb+" ("+fmt(cp.a.d)+"): "+cp.a.kg+" kg x "+cp.a.reps+"   |   Ultima ("+fmt(cp.l.d)+"): "+cp.l.kg+" kg x "+cp.l.reps,0);
+ var x0=70,x1=545,y0=560,y1=700,ys=ds.map(function(d){return d.kg}),mn=Math.min.apply(0,ys),mx=Math.max.apply(0,ys);if(mn==mx){mn-=1;mx+=1}
+ o+="0.6 w 0.6 0.65 0.75 RG "+x0+" "+y0+" m "+x1+" "+y0+" l S "+x0+" "+y0+" m "+x0+" "+y1+" l S\n";
+ var pts=ds.map(function(d,i){return[ds.length<2?(x0+x1)/2:x0+i*(x1-x0)/(ds.length-1),y0+(d.kg-mn)/(mx-mn)*(y1-y0-10)+5]});
+ o+="1 0.42 0.24 RG 2 w "+pts.map(function(p,i){return p[0].toFixed(1)+" "+p[1].toFixed(1)+(i?" l":" m")}).join(" ")+" S\n1 0.42 0.24 rg\n";
+ pts.forEach(function(p){o+=(p[0]-3).toFixed(1)+" "+(p[1]-3).toFixed(1)+" 6 6 re f\n"});
+ o+="0 g\n";X(20,y1-4,9,String(Math.round(mx*10)/10)+" kg",0);X(20,y0,9,String(Math.round(mn*10)/10)+" kg",0);X(x0,y0-14,9,fmt(ds[0].d),0);if(ds.length>1)X(x1-50,y0-14,9,fmt(ds[ds.length-1].d),0);
+ X(x0,y1+8,10,"Peso maximo por sesion (kg)",1);
+ X(50,520,12,"Registro de sesiones",1);var y=504;
+ ds.slice().reverse().slice(0,30).forEach(function(d){if(y<50)return;X(50,y,10,fmt(d.d)+"  -  mejor: "+d.kg+" kg x "+d.reps+"  -  "+d.n+(d.n==1?" serie: ":" series: ")+d.s.join(", ").replace(/x/g," x ").slice(0,70),0);y-=14});
+ X(50,30,8,"Estimacion orientativa. Mi Coach.",0);
+ var ob=[];ob[1]="<</Type/Catalog/Pages 2 0 R>>";ob[2]="<</Type/Pages/Kids[5 0 R]/Count 1>>";ob[3]="<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>";ob[4]="<</Type/Font/Subtype/Type1/BaseFont/Helvetica-Bold/Encoding/WinAnsiEncoding>>";
+ ob[5]="<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]/Resources<</Font<</F1 3 0 R/F2 4 0 R>>>>/Contents 6 0 R>>";ob[6]="<</Length "+o.length+">>\nstream\n"+o+"\nendstream";
+ var s="%PDF-1.4\n",off=[],i;for(i=1;i<ob.length;i++){off[i]=s.length;s+=i+" 0 obj\n"+ob[i]+"\nendobj\n"}
+ var xr=s.length;s+="xref\n0 "+ob.length+"\n0000000000 65535 f \n"+off.slice(1).map(function(q){return String(q).padStart(10,"0")+" 00000 n \n"}).join("")+"trailer\n<</Size "+ob.length+"/Root 1 0 R>>\nstartxref\n"+xr+"\n%%EOF";
+ var u=new Uint8Array(s.length);for(i=0;i<s.length;i++)u[i]=s.charCodeAt(i)&255;
+ var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([u],{type:"application/pdf"}));a.download="progreso-"+norm(e).replace(/ /g,"-")+".pdf";document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},2000)}
+
+/* ---------- 5) Foco hoy: cada botón lleva directo a la pantalla de la tarea ---------- */
+function scrollDet(k){setTimeout(function(){var l=document.querySelectorAll("details"),i;for(i=0;i<l.length;i++)if(l[i].getAttribute("ontoggle")==="OPEN['"+k+"']=this.open"){l[i].open=true;l[i].scrollIntoView({block:"start"});return}},120)}
+async function goDest(f,id){
+ if(f=="msg")return abrirChat(id);
+ await openC(id);if(!CUR||!CUR.c)return;
+ if(f=="dev"){var pa=(CUR.adj||[]).filter(function(a){return a.tipo!="Comprobante de pago"&&!a.devolucion});
+  if(pa.length){var a=pa[0];CT="prog";MT=a.tipo;MFd=String(a.creado).slice(0,10);FMM=new Date(MFd+"T12:00:00");OPEN.media=true;redraw();setTimeout(function(){var t=document.querySelector('textarea[id^="dv"]');if(t){t.scrollIntoView({block:"center"});t.focus()}},150);return}
+  var pc=(CUR.com||[]).filter(function(m){return!m.comentario});
+  if(pc.length){var d=fDe(pc[pc.length-1]);CT="nutri";OPEN["cd"+d]=true;redraw();setTimeout(function(){var e=$("d_cd"+d);if(e)e.scrollIntoView({block:"start"})},150);return}}
+ if(f=="comp"||f=="vence"||f=="sinpago"){CT="ficha";redraw();setTimeout(function(){var e=$("pagocard");if(e)e.scrollIntoView({block:"start"})},150);return}
+ if(f=="mol"){CT="ficha";OPEN.mol=true;redraw();scrollDet("mol");return}
+ if(f=="anal"){CT="prog";OPEN.analisis=true;redraw();scrollDet("analisis");return}
+ if(f=="racha"){CT="prog";redraw();return}
+ if(f=="sinrut"||f=="sinsem"){CT="rutina";OPEN.armar=true;redraw();scrollDet("armar");return}
+ CT="rutina";redraw()}
+who=function(c,f){return'<span class="who" onclick="event.stopPropagation();goDest(\''+f+'\',\''+esc(c.id)+'\')">'+esc(String(c.nombre||"?").split(" ")[0])+'</span>'};
+focoH=function(R){
+ if(!R.length)return'<div class="focus"><div class="fh"><b>Tu foco hoy</b><span class="n">0</span></div><div class="fr" style="--c:#2ecc8f"><span class="fi">'+ico("check")+'</span><b>Todo al día. No hay nada urgente 🎉</b></div></div>';
+ return'<div class="focus"><div class="fh"><b>Tu foco hoy</b><span class="n">'+R.reduce(function(s,r){return s+r.n},0)+'</span></div>'+R.map(function(r){
+  var one=r.l.length==1,act=one?"goDest('"+r.f+"','"+esc(r.l[0].id)+"')":"AFF='"+r.f+"';AFQ='';go('alumnos')";
+  var ns=r.l.slice(0,4).map(function(c){return who(c,r.f)}).join("")+(r.l.length>4?'<span class="who m">+'+(r.l.length-4)+'</span>':"");
+  return'<div class="fr" role="button" tabindex="0" style="--c:'+r.col+';cursor:pointer" onclick="'+act+'"><span class="fi">'+ico(r.ic)+'</span><span style="flex:1;min-width:0"><b>'+esc(r.t)+'</b><span class="mut" style="display:block;font-size:13px;margin-top:2px">'+esc(r.s)+'</span><span style="display:block;margin-top:6px">'+ns+'</span></span><span class="mut">›</span></div>'}).join("")+'</div>'};
+
+/* ---------- 6) Análisis de cuerpo: elegís qué foto(s) analizar ---------- */
+var ANSEL={},ANSELC="",ANERR="";
+function anFotos(){return(CUR.adj||[]).filter(function(a){return a.path&&/inicial|mensual|progreso/i.test(a.tipo)&&!/\.(mp4|mov|webm|m4v|3gp|pdf)$/i.test(a.path)}).slice().reverse()}
+function anTog(id){ANSEL[id]=!ANSEL[id];redraw()}
+function anPickH(){var F=anFotos();if(ANSELC!=CUR.c.id){ANSELC=CUR.c.id;ANSEL={};if(F.length){var d=String(F[0].creado).slice(0,10);F.filter(function(a){return String(a.creado).slice(0,10)==d}).slice(0,4).forEach(function(a){ANSEL[a.id]=true})}}
+ var menor=+CUR.c.edad&&+CUR.c.edad<18,n=Object.keys(ANSEL).filter(function(k){return ANSEL[k]}).length;
+ return'<div class="card"><b>🔬 Análisis de cuerpo con IA</b><p class="mut">Tocá las fotos que querés que analice (hasta 4). Queda como borrador: el alumno no ve nada hasta que lo apruebes. Es una estimación visual: revisala y corregila antes de aprobar.</p>'+(menor?'<p class="bad">⚠ Es menor de 18 años: no se genera.</p>':(F.length?'<div class="mgal">'+F.map(function(a){var on=ANSEL[a.id];return'<div class="mth'+(on?" hoy":"")+'" onclick="anTog(\''+a.id+'\')"><img data-p="'+esc(a.path)+'" alt=""><span class="mtn">'+(on?"✓ ":"")+fmt(String(a.creado).slice(0,10)).slice(0,5)+(a.plano?" · "+esc(a.plano):"")+'</span></div>'}).join("")+'</div><button class="p w" id="anb" onclick="analizarSel()">✨ Analizar '+n+(n==1?" foto":" fotos")+'</button>':'<p class="mut">Este alumno todavía no subió fotos inicial o de progreso.</p>'))+(ANERR?'<p class="bad" style="white-space:pre-wrap">'+esc(ANERR)+'</p>':'')+'<p id="anst" class="mut"></p></div>'}
+var _anCoachH111=anCoachH;
+anCoachH=function(){var h=_anCoachH111(),i=h.indexOf("</div>");return anPickH()+(i>=0?h.slice(i+6):h)};
+function b64Of(f){return new Promise(function(ok){var fr=new FileReader();fr.onload=function(){ok(String(fr.result).split(",")[1])};fr.readAsDataURL(f)})}
+async function analizarSel(){var ids=Object.keys(ANSEL).filter(function(k){return ANSEL[k]});if(!ids.length){alert("Elegí al menos una foto.");return}if(ids.length>4){alert("Elegí hasta 4 fotos.");return}
+ var o=$("anst"),b=$("anb"),c=CUR.c;ANERR="";b.disabled=true;o.textContent="Preparando las fotos…";
+ try{var im=[];for(var k=0;k<ids.length;k++){var a=CUR.adj.find(function(z){return z.id==ids[k]}),u=await sb.storage.from("archivos").createSignedUrl(a.path,600);if(u.error)throw u.error.message;
+  var bl=await(await fetch(u.data.signedUrl)).blob(),f=await comprimir(new File([bl],"f.jpg",{type:bl.type||"image/jpeg"}));im.push({type:"image",source:{type:"base64",media_type:f.type||"image/jpeg",data:await b64Of(f)}})}
+  o.textContent="Analizando… puede tardar unos segundos";
+  var p="Sos asistente de una coach de fitness. Estas son fotos de progreso de "+c.nombre+" ("+(c.sexo||"")+", "+(c.edad||"?")+" años, "+(c.peso||"?")+" kg, "+(c.altura||"?")+" cm, objetivo: "+(c.obj||"?")+"). Hacé una estimación visual ORIENTATIVA, no un diagnóstico. Respondé SOLO con un JSON válido, sin markdown ni texto extra, con estas claves: grasa_min (número, % estimado), grasa_max (número), somatotipo (texto corto), somatotipo_explicacion (una frase), resumen (2 o 3 frases en español rioplatense), zonas (array de textos: zonas a priorizar), ejercicios (array de 4 a 6 sugerencias), nutricion (array de 3 a 5 sugerencias).";
+  var r=await sb.functions.invoke("asistente",{body:{messages:[{role:"user",content:im.concat([{type:"text",text:p}])}],cliente:null}});
+  if(r.error){var m=r.error.message;try{var j=await r.error.context.json();m=j.error||m}catch(e){}throw m}
+  var tx=(r.data.content||[]).filter(function(x){return x.type=="text"}).map(function(x){return x.text}).join("\n"),i0=tx.indexOf("{"),i1=tx.lastIndexOf("}");if(i0<0||i1<i0)throw "La IA no devolvió un análisis válido. Probá de nuevo.";
+  var d=JSON.parse(tx.slice(i0,i1+1)),ins=await sb.from("analisis_cuerpo").insert({cliente_id:c.id,estado:"borrador",datos:d});
+  if(ins.error)throw "No se pudo guardar el análisis: "+ins.error.message;
+  await loadCur(c.id);OPEN.analisis=true;redraw();toast("✓ Análisis listo: revisalo y aprobalo")}
+ catch(e){ANERR="No se pudo generar: "+(e&&e.message||e);redraw()}}
+
+/* ---------- 7) Nutrición del cliente: una sola lista de “qué comer hoy” ---------- */
+function hayPlanHoy(){var t=hoy();return(CUR.nu||[]).some(function(x){return!x.fecha||String(x.fecha).slice(0,10)==t})}
+var _menuH111=menuH;
+menuH=function(c){if(hayPlanHoy())return"";return _menuH111(c).replace("🍽 Tu menú del día","🍽 Qué comer hoy")};
+var _nuCliH111=nuCliH;
+nuCliH=function(){if(!hayPlanHoy())return"";return _nuCliH111().replace("<h2>Mi plan de hoy</h2>","<h2>🍽 Qué comer hoy</h2>")};
+planNH=function(){var c=CUR.c,k=kcal(c),O={deficit:"Déficit calórico",mantener:"Mantenimiento",superavit:"Superávit calórico"};if(OPEN.menu===undefined)OPEN.menu=true;
+ var pl=nuCliH().replace(/<h2>Lo que comí<\/h2>$/,"");
+ return menuH(c)+pl+fotoRapH()+'<div class="card"><b>Mi objetivo: '+(O[c.obj]||"sin definir")+'</b>'+(k?'<p class="tt" style="font-size:28px;margin:8px 0">~'+k.k+' kcal · '+k.p+' g de proteína</p><p class="mut">Estimación según tu edad, sexo, peso, altura y días de entrenamiento. Tu coach la ajusta según tu progreso.</p>':'<p class="mut">Completá tus datos en “Más” para ver tu estimación.</p>')+'</div>'+restH(c)+macH(c)+supCliH()};
+
+}catch(e){console.error("addon v111",e)}
+
+</script>
 </body>
 </html>
