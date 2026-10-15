@@ -411,7 +411,8 @@ function vid(b,u){var x=b.nextElementSibling;if(x.innerHTML){x.innerHTML="";retu
 function coach(){return ROL==="coach"}
 function comprimir(f){return new Promise(function(ok){if(!/^image\//.test(f.type)||f.type=="image/gif")return ok(f);var i=new Image();i.onload=function(){var k=Math.min(1,1280/Math.max(i.width,i.height)),c=document.createElement("canvas");c.width=i.width*k;c.height=i.height*k;c.getContext("2d").drawImage(i,0,0,c.width,c.height);c.toBlob(function(b){ok(b?new File([b],"f.jpg",{type:"image/jpeg"}):f)},"image/jpeg",.75)};i.onerror=function(){ok(f)};i.src=URL.createObjectURL(f)})}
 var SUBERR="";async function subir(f,cid,q){f=await comprimir(f);var e=(f.name.split(".").pop()||"bin").toLowerCase().replace(/[^a-z0-9]/g,"").slice(0,5)||"bin",p=(cid||CUR.c.id)+"/"+Date.now()+"."+e,r=await sb.storage.from("archivos").upload(p,f,{contentType:f.type});if(r.error){SUBERR=r.error.message;if(q)return null;alert(/maximum allowed size|too large/i.test(r.error.message)?"El archivo es muy pesado. Si es un video, grabá uno más corto o con menor calidad.":r.error.message);return null}return p}
-var SURL={};function imgs(){document.querySelectorAll("img[data-p],[data-m]").forEach(function(im){var p=im.dataset.p||im.dataset.m,c=SURL[p];if(c&&c.t>Date.now()){im.src=c.u;return}sb.storage.from("archivos").createSignedUrl(p,3600).then(function(r){if(r.data){SURL[p]={u:r.data.signedUrl,t:Date.now()+3e6};im.src=r.data.signedUrl}})})}
+var SURL={};function imgFb(im){var f=im.getAttribute("data-fb");var sp=document.createElement("span");sp.className=im.className;sp.setAttribute("style",(im.getAttribute("style")||"")+";display:flex;align-items:center;justify-content:center;font-size:30px;line-height:1");sp.textContent=f||"";if(f)im.replaceWith(sp);else im.style.display="none"}
+function imgs(){document.querySelectorAll("img[data-p],[data-m]").forEach(function(im){if(im.tagName==="IMG"&&!im.__fb){im.__fb=1;im.addEventListener("error",function(){if(im.getAttribute("src"))imgFb(im)})}var p=im.dataset.p||im.dataset.m,c=SURL[p];if(c&&c.t>Date.now()){im.src=c.u;return}sb.storage.from("archivos").createSignedUrl(p,3600).then(function(r){if(r.data&&r.data.signedUrl){SURL[p]={u:r.data.signedUrl,t:Date.now()+3e6};im.src=r.data.signedUrl}else if(im.tagName==="IMG")imgFb(im)}).catch(function(){if(im.tagName==="IMG")imgFb(im)})})}
 function fotoH(p,m){return p?'<img class="mf" data-p="'+esc(p)+'" alt="">':'<div class="mf ph">'+((typeof EM!=="undefined"&&EM[m])||"🍽")+'</div>'}
 async function ver(b,p){var x=b.nextElementSibling;if(x.innerHTML){x.innerHTML="";return}var r=await sb.storage.from("archivos").createSignedUrl(p,3600);if(r.error){alert(r.error.message);return}var u=r.data.signedUrl;if(/\.pdf$/i.test(p)){window.open(u,"_blank");return}x.innerHTML=/\.(mp4|mov|webm|m4v|3gp)$/i.test(p)?'<video src="'+u+'" controls playsinline style="width:100%;border-radius:10px;margin-top:6px"></video>':'<img src="'+u+'" style="width:100%;border-radius:10px;margin-top:6px">'}
 var MT="Ejercicio de hoy",MTY=["Ejercicio de hoy","Foto de progreso (mensual)","Foto inicial","Comprobante de pago"];
@@ -1168,13 +1169,13 @@ pendC=function(c){return _pendC(c)||!!(PEND[c.id]&&PEND[c.id].r)};
 
 /* ===== v49: fotos reales de alimentos, GIF para el cliente, aviso del micrófono ===== */
 function fotoMap(){try{return JSON.parse(CFG.imgs_alimentos||"{}")}catch(e){return{}}}
-function fotoAl(n,css){var p=fotoMap()[norm(n)];return p?'<img data-m="'+esc(p)+'" alt="'+esc(n)+'" style="'+css+'">':""}
+function fotoAl(n,css,fb){var p=fotoMap()[norm(n)];return p?'<img data-m="'+esc(p)+'" data-fb="'+esc(fb||"")+'" alt="" style="'+css+'">':""}
 var PLN=["Plato verduras","Plato proteína","Plato carbohidratos","Plato grasas"];
-function fotoPl(i,col){return fotoAl(PLN[i],"width:56px;height:56px;border-radius:12px;object-fit:cover;flex:none")||'<span style="flex:none;width:14px;height:14px;border-radius:5px;background:'+col+';margin-top:4px"></span>'}
+function fotoPl(i,col){return fotoAl(PLN[i],"width:56px;height:56px;border-radius:12px;object-fit:cover;flex:none",["🥦","🍗","🍚","🥑"][i])||'<span style="flex:none;width:14px;height:14px;border-radius:5px;background:'+col+';margin-top:4px"></span>'}
 nutH=function(){
  var s=NUT.filter(function(x){return x.k==NUF})[0]||NUT[0],mx=Math.max.apply(0,s.l.map(function(x){return x[2]})),
  ch=NUT.map(function(x){return'<button class="'+(NUF==x.k?"p":"")+'" style="min-height:40px;padding:0 12px;white-space:nowrap" onclick="nuSet(\''+x.k+'\')">'+x.e+" "+x.n+'</button>'}).join("");
- return'<div class="sec">Alimentos ricos en…</div><div class="card"><div class="chips">'+ch+'</div><p><b>'+s.e+" "+s.n+'</b><br><span class="mut">'+s.d+'</span></p><p class="mut" style="margin:4px 0">'+s.n+' aprox. por 100 g</p><div class="tiles">'+s.l.map(function(x){var pc=Math.max(6,Math.round(x[2]/mx*100)),top=fotoAl(x[1],"width:100%;height:96px;object-fit:cover;border-radius:10px")||'<div style="font-size:44px;line-height:1.1">'+x[0]+'</div>';return'<div style="background:var(--bg);border:1px solid var(--bd);border-radius:14px;padding:12px;text-align:center">'+top+'<div style="font-size:14px;margin:6px 0;min-height:36px">'+esc(x[1])+'</div><span class="tag ok" style="font-weight:700">'+String(x[2]).replace(".",",")+" "+s.u+'</span><div class="bar" style="height:6px;margin-top:8px"><i style="height:6px;width:'+pc+'%"></i></div></div>'}).join("")+'</div><p class="mut" style="font-size:13px;margin-top:10px">'+s.nota+'</p></div>'};
+ return'<div class="sec">Alimentos ricos en…</div><div class="card"><div class="chips">'+ch+'</div><p><b>'+s.e+" "+s.n+'</b><br><span class="mut">'+s.d+'</span></p><p class="mut" style="margin:4px 0">'+s.n+' aprox. por 100 g</p><div class="tiles">'+s.l.map(function(x){var pc=Math.max(6,Math.round(x[2]/mx*100)),top=fotoAl(x[1],"width:100%;height:96px;object-fit:cover;border-radius:10px",x[0])||'<div style="font-size:44px;line-height:1.1">'+x[0]+'</div>';return'<div style="background:var(--bg);border:1px solid var(--bd);border-radius:14px;padding:12px;text-align:center">'+top+'<div style="font-size:14px;margin:6px 0;min-height:36px">'+esc(x[1])+'</div><span class="tag ok" style="font-weight:700">'+String(x[2]).replace(".",",")+" "+s.u+'</span><div class="bar" style="height:6px;margin-top:8px"><i style="height:6px;width:'+pc+'%"></i></div></div>'}).join("")+'</div><p class="mut" style="font-size:13px;margin-top:10px">'+s.nota+'</p></div>'};
 function alNombres(){var o={};NUT.forEach(function(s){s.l.forEach(function(x){o[norm(x[1])]=x[1]})});PLN.forEach(function(n){o[norm(n)]=n});return o}
 async function subirAl(){var fs=$("alf").files;if(!fs.length)return;var N=alNombres(),M=fotoMap(),ok=0,no=[];
  for(var i=0;i<fs.length;i++){$("alp").textContent="Subiendo "+(i+1)+" de "+fs.length+"…";var b=norm(fs[i].name.replace(/\.[^.]+$/,"")),k=N[b]?b:Object.keys(N).filter(function(z){return z.indexOf(b)==0})[0];if(!k){no.push(fs[i].name);continue}
@@ -1905,14 +1906,6 @@ try{var _inv=sb.functions.invoke.bind(sb.functions);sb.functions.invoke=async fu
   q.kcal=+(q.calorias||q.calories||q.kcal_total)||g(/(\d[\d.,]*)\s*kcal/i);q.proteina_g=+(q.proteina_g||q.proteinas||q.proteina||q.prot)||g(/\bP\s*(\d[\d.,]*)/);q.carbos_g=+(q.carbos_g||q.carbohidratos||q.carbos||q.carb)||g(/\bC\s*(\d[\d.,]*)/);q.grasas_g=+(q.grasas_g||q.grasas||q.gras)||g(/\bG\s*(\d[\d.,]*)/)}}catch(e){}return r}}catch(e){}
 var _cH113=cargarH;cargarH=function(){return _cH113().replace('<input id="nf" type="file" accept="image/*">','<input id="nf" type="file" accept="image/*" onchange="calcFoto()">')};
 
-/* Sin emojis en toda la app */
-var EM=/[\p{Extended_Pictographic}\u{1F3FB}-\u{1F3FF}\uFE0F\u200D\u20E3]/gu,KEEP="✔✖",MAP={"📝":"Editar","🎞":"Video","📷":"Foto","⚠":"Dolor","💪":"Músculos","ℹ":"Info","🎤":"Dictar","⏹":"Parar","🔁":"Repetir","🗑":"Borrar","📄":"PDF","💬":"Chat","🔔":"Avisos","👁":"Ver"};
-function clean(){try{var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null),n,L=[];while((n=w.nextNode()))L.push(n);
- L.forEach(function(n){var v=n.nodeValue;if(!v||!EM.test(v)){EM.lastIndex=0;return}EM.lastIndex=0;var p=n.parentNode;if(!p||/^(SCRIPT|STYLE|TEXTAREA)$/.test(p.tagName)||(p.closest&&p.closest(".b")))return;
-  var r=v.replace(EM,function(c){return KEEP.indexOf(c)>=0?c:""});
-  if(!r.trim()){var k=v.trim().replace(/\uFE0F/g,"").charAt(0),isB=p.closest&&p.closest("button,a,summary");if(isB){n.nodeValue=MAP[k]||"Ver"}else if(!p.children.length){p.style.display="none"}return}
-  n.nodeValue=r.replace(/^\s+/,"")})}catch(e){}}
-var _t;new MutationObserver(function(){clearTimeout(_t);_t=setTimeout(clean,30)}).observe(document.body,{childList:true,subtree:true,characterData:true});setTimeout(clean,200);
 })()}catch(e){console.error("v113",e)}
 
 /* ===== v114: fotos también en la lista de Alimentos, renombrar ejercicios, copiar nombres ===== */
@@ -1920,7 +1913,7 @@ try{(function(){
 var _al=alNombres;alNombres=function(){var o=_al();try{FD.forEach(function(f){var k=norm(f[0]);if(!o[k])o[k]=f[0]})}catch(e){}return o};
 fListH=function(){var q=norm(FQ),l=[];FD.forEach(function(f,i){if(FCT&&f[1]!==FCT)return;if(q&&norm(f[0]).indexOf(q)<0)return;l.push([f,i])});
  if(!l.length)return '<div class="card mut">No encontré ese alimento.</div>';
- return l.map(function(p){var f=p[0],im=fotoAl(f[0],"width:52px;height:52px;border-radius:10px;object-fit:cover;flex:none");return '<button class="fr" style="--c:#2ecc8f" onclick="abrirAl('+p[1]+')">'+im+'<span style="flex:1;min-width:0"><b>'+esc(f[0])+'</b><div class="mut">'+f[2]+' kcal · P '+f[3]+' · C '+f[4]+' · G '+f[5]+'</div></span><span class="mut">›</span></button>'}).join("")};
+ return l.map(function(p){var f=p[0],im=fotoAl(f[0],"width:52px;height:52px;border-radius:10px;object-fit:cover;flex:none","🍽");return '<button class="fr" style="--c:#2ecc8f" onclick="abrirAl('+p[1]+')">'+im+'<span style="flex:1;min-width:0"><b>'+esc(f[0])+'</b><div class="mut">'+f[2]+' kcal · P '+f[3]+' · C '+f[4]+' · G '+f[5]+'</div></span><span class="mut">›</span></button>'}).join("")};
 fRender=function(){var e=$("fl");if(e){e.innerHTML=fListH();try{imgs()}catch(x){}}};
 var _d114=draw;draw=function(){_d114();try{imgs()}catch(e){}};
 var _libH114=libH;libH=function(){var h=_libH114();
@@ -1990,7 +1983,8 @@ avisosH=function(){var a=avisos();if(!a.length)return"";return '<div class="focu
 
 /* ---------- 5) Biblioteca de ejercicios: ver, buscar, compartir ---------- */
 var BQ="",BZ="";
-function bibListH(){var q=norm(BQ),l=LIB.filter(function(e){return(!BZ||(e.grupo||"Sin categoría")==BZ)&&(!q||norm(e.nombre).indexOf(q)>=0)}).sort(function(a,b){return String(a.nombre).localeCompare(b.nombre)});
+function bibMatch(e,q){var hay=norm((e.nombre||"")+" "+(e.grupo||"")+" "+(e.descripcion||"")+" "+(e.equipo||"")),w=q.split(" ").filter(Boolean);return w.every(function(t){t=t.replace(/(es|s)$/,"");return hay.indexOf(t)>=0})}
+function bibListH(){var q=norm(BQ),l=LIB.filter(function(e){return(!BZ||(e.grupo||"Sin categoría")==BZ)&&(!q||bibMatch(e,q))}).sort(function(a,b){return String(a.nombre).localeCompare(b.nombre)});
  return l.length?l.map(function(e){return '<button class="fr" style="--c:#ff9f1c" onclick="abrirLib(\''+e.id+'\')">'+libTh(e)+'<span style="flex:1;min-width:0;text-align:left"><b>'+esc(e.nombre)+'</b><span class="mut" style="display:block;font-size:13px">'+esc(e.grupo||"")+'</span></span><span class="mut">›</span></button>'}).join(""):'<p class="mut">No encontré ese ejercicio.</p>'}
 window.bibRender=function(){var e=$("bl");if(e){e.innerHTML=bibListH();imgs()}};
 window.bibCat=function(z){BZ=z;draw()};
@@ -2053,6 +2047,9 @@ function fdBuscar(txt){var q=norm(txt).replace(/\s+/g," ").trim(),best=null,bl=0
  FD.forEach(function(f,i){String(f[0]).split("/").forEach(function(nm){var n=norm(nm).trim(),n2=n.replace(/s$/,""),q2=q.replace(/s$/,"");if(n.length>bl&&(q.indexOf(n)>=0||q.indexOf(n2)>=0||(q.length>3&&(n.indexOf(q)==0||n2==q2)))){best=i;bl=n.length}})});return best}
 var UN=/(\d+(?:[.,]\d+)?)\s*(kg|grs?|gramos|g|ml|cc|l)\b/i;
 function parseCom(d){var t=String(d||"").replace(/\*\*/g,"").replace(/\([^)]*\)/g,""),out=[];
+ /* cucharadas/cucharaditas: se pasan a gramos y se unen con su alimento (aunque venga separado por coma) */
+ t=t.replace(/\b(cdtas?|cditas?|cucharaditas?|cdas?|cucharadas?)\s*[,;+]\s*/gi,"$1 ");
+ t=t.replace(/(?:(\d+(?:[.,]\d+)?|1\/2|media|medio|una|un)\s+)?\b(cdtas?|cditas?|cucharaditas?|cdas?|cucharadas?)\b\s*(?:de\s+)?(?:(media|medio|1\/2|una|un|\d+(?:[.,]\d+)?)\s+)?(?:de\s+)?([^,;+\n]+)/gi,function(m,q1,u,q2,nm){var q=q1||q2||"1",n=/^(media|medio|1\/2)$/i.test(q)?0.5:/^(una|un)$/i.test(q)?1:parseFloat(String(q).replace(",","."))||1,g=/^(cdtas?|cditas?|cucharaditas?)$/i.test(u)?5:15;return nm.trim()+" "+Math.round(n*g*10)/10+" g"});
  t.split(/\s*(?:\+|,|;|\n|\s+y\s+|\s+con\s+)\s*/i).filter(function(p){return p.trim()}).forEach(function(p){var m=p.match(UN),g=0;if(m){g=parseFloat(m[1].replace(",","."));var u=m[2].toLowerCase();if(u=="kg"||u=="l")g*=1000}
   var nm=p.replace(new RegExp(UN.source,"ig"),"").replace(/\d+/g,"").replace(/\b(unidades?|u|rodajas?|porci[oó]n(es)?|de)\b/ig," ").replace(/\s+/g," ").replace(/^\W+|\W+$/g,"").trim(),i=fdBuscar(nm||p),o={n:nm||p.trim(),g:g};
   if(i!=null){var f=FD[i];o.i=i;o.n=f[0];if(!g){var q=p.match(/(\d+)/);if(q&&/huevo/i.test(f[0]))o.g=+q[1]*50}
@@ -2062,7 +2059,7 @@ function rn(x){return Math.round(x)}
 function mealH(x){var its=parseCom(x.descripcion),s={k:0,p:0,c:0,g:0},hay=false;
  its.forEach(function(o){if(o.i!=null&&o.g){hay=true;s.k+=o.k;s.p+=o.p;s.c+=o.c;s.g+=o.gr}});
  var T={k:+x.kcal||rn(s.k),p:+x.prot||rn(s.p),c:+x.carb||rn(s.c),g:+x.gras||rn(s.g)},
- rows=its.some(function(o){return o.i!=null})?its.map(function(o){var im=o.i!=null?fotoAl(o.n,"width:54px;height:54px;border-radius:10px;object-fit:cover;flex:none"):"";
+ rows=its.some(function(o){return o.i!=null})?its.map(function(o){var im=o.i!=null?fotoAl(o.n,"width:54px;height:54px;border-radius:10px;object-fit:cover;flex:none","🍽"):"";
   return '<div style="display:flex;gap:10px;align-items:center;padding:8px 14px;border-top:1px solid var(--bd)">'+im+'<div style="flex:1;min-width:0"><b>'+esc(o.n)+'</b>'+(o.g?' <span class="mut">('+rn(o.g)+' g)</span>':"")+(o.i!=null&&o.g?'<div class="mut" style="font-size:13px">≈ <b style="color:var(--ok)">'+rn(o.p)+' g</b> proteína · '+rn(o.c)+' g carbos · '+rn(o.gr)+' g grasas</div>':"")+'</div></div>'}).join(""):'<div style="padding:8px 14px;border-top:1px solid var(--bd)">'+iaTxt(x.descripcion||"")+'</div>';
  return '<div class="card" style="padding:0;overflow:hidden"><div class="row" style="padding:14px 14px 10px"><b class="tt" style="font-size:28px;text-transform:uppercase">'+esc(x.momento||"Comida")+'</b>'+(T.k?'<span class="mut">≈ '+T.k+' kcal</span>':"")+'</div>'+rows
   +'<div style="background:#ff6b2c;color:#fff;padding:12px 14px"><div class="tt" style="font-size:26px">≈ '+(T.p||"—")+' g DE PROTEÍNA</div><div style="font-size:14px;opacity:.95">'+(T.c?T.c+' g carbohidratos':"")+(T.g?' · '+T.g+' g grasas':"")+'</div></div>'+(x.comentario?'<p style="padding:0 14px"><b>Tu coach:</b> '+esc(x.comentario)+'</p>':"")+'<p class="mut" style="font-size:12px;padding:0 14px">Valores aproximados. Pueden variar según la marca.</p></div>'}
