@@ -296,7 +296,9 @@ function subGlobal(){if(CHG||!ROL||V==="login"||V==="recup")return;if(!coach()&&
 function b64u(s){var p="=".repeat((4-s.length%4)%4),r=atob((s+p).replace(/-/g,"+").replace(/_/g,"/")),o=new Uint8Array(r.length);for(var i=0;i<r.length;i++)o[i]=r.charCodeAt(i);return o}
 async function activarPush(){try{if(!("serviceWorker" in navigator)||!("PushManager" in window)){alert("Este navegador no permite avisos. Abrí la app desde Chrome con el link https (no desde Descargas).");return}
  if(!CFG.vapid_public){alert("Falta cargar la clave de avisos (vapid_public) en Supabase. Mirá PUSH_SETUP.md.");return}
- var perm=await Notification.requestPermission();if(perm!=="granted"){alert("Tenés que permitir las notificaciones.");return}
+ if(location.protocol!=="https:"){alert("Abrí la app desde su dirección web (https://gestion-m.github.io/…), no desde un archivo guardado en el celular. Los avisos solo funcionan ahí.");return}
+ if(Notification.permission==="denied"){alert("Los avisos están bloqueados para este sitio. Tocá el candado o el ícono de ajustes junto a la dirección → Permisos → Notificaciones → Permitir. Después volvé a tocar «Activar avisos de chat».");return}
+ var perm=await Notification.requestPermission();if(perm!=="granted"){alert("No se activaron. Cuando aparezca el cartel del navegador tocá «Permitir». Si no aparece, revisá en los ajustes de Android que Chrome tenga las notificaciones activadas.");return}
  var reg=await navigator.serviceWorker.ready,sub=(await reg.pushManager.getSubscription())||(await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64u(CFG.vapid_public)})),u=(await sb.auth.getUser()).data.user,j=sub.toJSON();
  var r=await sb.from("push_subs").upsert({endpoint:j.endpoint,user_id:u.id,email:String(u.email||"").toLowerCase(),sub:j},{onConflict:"endpoint"});
  if(r.error){alert(r.error.message+" (¿corriste push.sql?)");return}
@@ -388,6 +390,7 @@ async function guardarFicha(){
  await loadCur(CUR.c.id);draw();alert("Datos guardados.")}
 async function aprobar(i,v){await sb.from("plan_dias").update({aprobado:v}).eq("id",i);await loadCur(CUR.c.id);draw()}
 async function delD(i){await sb.from("plan_dias").delete().eq("id",i);await loadCur(CUR.c.id);draw()}
+async function delCid(id){var c=LIST.find(function(x){return x.id==id});if(!c)return;var nm=prompt("Para borrar a "+c.nombre+" y TODOS sus datos, escribí su nombre completo:");if(nm===null)return;if(nm.trim().toLowerCase()!==String(c.nombre).trim().toLowerCase()){alert("El nombre no coincide. No se borró nada.");return}var r=await sb.from("clientes").delete().eq("id",id);if(r.error){alert("No se pudo borrar: "+r.error.message);return}await loadList();go("alumnos");toast("Alumno borrado")}
 async function delC(){var nm=prompt("Para borrar a "+CUR.c.nombre+" y TODOS sus datos, escribí su nombre completo:");if(nm&&nm.trim().toLowerCase()===String(CUR.c.nombre).trim().toLowerCase()){await sb.from("clientes").delete().eq("id",CUR.c.id);await loadList();go("alumnos")}else if(nm!==null)alert("El nombre no coincide. No se borró nada.")}
 async function addP(){var v=parseFloat($("pk").value);if(!v)return;var r=await sb.from("pesos").insert({cliente_id:CUR.c.id,kg:v});if(r.error){alert(r.error.message);return}await loadCur(CUR.c.id);draw()}
 async function tick(i,n,v){var d=CUR.p.find(function(x){return x.id===i});d.hecho[n]=v;await sb.from("plan_dias").update({hecho:d.hecho}).eq("id",i);if(v&&!coach())try{rachaAviso(i)}catch(e){}}
@@ -412,7 +415,7 @@ function coach(){return ROL==="coach"}
 function comprimir(f){return new Promise(function(ok){if(!/^image\//.test(f.type)||f.type=="image/gif")return ok(f);var i=new Image();i.onload=function(){var k=Math.min(1,1280/Math.max(i.width,i.height)),c=document.createElement("canvas");c.width=i.width*k;c.height=i.height*k;c.getContext("2d").drawImage(i,0,0,c.width,c.height);c.toBlob(function(b){ok(b?new File([b],"f.jpg",{type:"image/jpeg"}):f)},"image/jpeg",.75)};i.onerror=function(){ok(f)};i.src=URL.createObjectURL(f)})}
 var SUBERR="";async function subir(f,cid,q){f=await comprimir(f);var e=(f.name.split(".").pop()||"bin").toLowerCase().replace(/[^a-z0-9]/g,"").slice(0,5)||"bin",p=(cid||CUR.c.id)+"/"+Date.now()+"."+e,r=await sb.storage.from("archivos").upload(p,f,{contentType:f.type});if(r.error){SUBERR=r.error.message;if(q)return null;alert(/maximum allowed size|too large/i.test(r.error.message)?"El archivo es muy pesado. Si es un video, grabá uno más corto o con menor calidad.":r.error.message);return null}return p}
 var SURL={};function imgFb(im){var f=im.getAttribute("data-fb");var sp=document.createElement("span");sp.className=im.className;sp.setAttribute("style",(im.getAttribute("style")||"")+";display:flex;align-items:center;justify-content:center;font-size:30px;line-height:1");sp.textContent=f||"";if(f)im.replaceWith(sp);else im.style.display="none"}
-function imgs(){document.querySelectorAll("img[data-p],[data-m]").forEach(function(im){if(im.tagName==="IMG"&&!im.__fb){im.__fb=1;im.addEventListener("error",function(){if(im.getAttribute("src"))imgFb(im)})}var p=im.dataset.p||im.dataset.m,c=SURL[p];if(c&&c.t>Date.now()){im.src=c.u;return}sb.storage.from("archivos").createSignedUrl(p,3600).then(function(r){if(r.data&&r.data.signedUrl){SURL[p]={u:r.data.signedUrl,t:Date.now()+3e6};im.src=r.data.signedUrl}else if(im.tagName==="IMG")imgFb(im)}).catch(function(){if(im.tagName==="IMG")imgFb(im)})})}
+function imgs(){document.querySelectorAll("img[data-p],[data-m]").forEach(function(im){if(im.tagName==="IMG"&&!im.__fb){im.__fb=1;im.addEventListener("error",function(){if(im.getAttribute("src"))imgFb(im)})}var p=im.dataset.p||im.dataset.m,c=SURL[p];if(c&&c.t>Date.now()){im.src=c.u;if(im.tagName!=="IMG")im.setAttribute("href",c.u);return}sb.storage.from("archivos").createSignedUrl(p,3600).then(function(r){if(r.data&&r.data.signedUrl){SURL[p]={u:r.data.signedUrl,t:Date.now()+3e6};im.src=r.data.signedUrl;if(im.tagName!=="IMG")im.setAttribute("href",r.data.signedUrl)}else if(im.tagName==="IMG")imgFb(im)}).catch(function(){if(im.tagName==="IMG")imgFb(im)})})}
 function fotoH(p,m){return p?'<img class="mf" data-p="'+esc(p)+'" alt="">':'<div class="mf ph">'+((typeof EM!=="undefined"&&EM[m])||"🍽")+'</div>'}
 async function ver(b,p){var x=b.nextElementSibling;if(x.innerHTML){x.innerHTML="";return}var r=await sb.storage.from("archivos").createSignedUrl(p,3600);if(r.error){alert(r.error.message);return}var u=r.data.signedUrl;if(/\.pdf$/i.test(p)){window.open(u,"_blank");return}x.innerHTML=/\.(mp4|mov|webm|m4v|3gp)$/i.test(p)?'<video src="'+u+'" controls playsinline style="width:100%;border-radius:10px;margin-top:6px"></video>':'<img src="'+u+'" style="width:100%;border-radius:10px;margin-top:6px">'}
 var MT="Ejercicio de hoy",MTY=["Ejercicio de hoy","Foto de progreso (mensual)","Foto inicial","Comprobante de pago"];
@@ -441,7 +444,7 @@ async function devol(i){var r=await sb.from("adjuntos").update({devolucion:$("dv
 function ni(i){var v=parseFloat(($(i)||{}).value);return isNaN(v)?null:Math.round(v)}
 function restH(c){var m=macros(c);if(!m)return'<div class="card mut">Completá tus datos en “Más” para ver cuánto te falta cada día.</div>';var t=hoy(),T={k:0,P:0,C:0,G:0};(CUR.com||[]).forEach(function(r){var f=r.fecha?String(r.fecha).slice(0,10):ymd(new Date(r.creado));if(f!==t)return;T.k+=+r.kcal||0;T.P+=+r.prot||0;T.C+=+r.carb||0;T.G+=+r.gras||0});
  var R=[["Calorías",T.k,m.k,"kcal","var(--pri)"],["Proteínas",T.P,m.P,"g","var(--ok)"],["Carbohidratos",T.C,m.C,"g","#2f80ed"],["Grasas",T.G,m.G,"g","#ffb86b"]];
- return '<div class="card"><b class="tt" style="font-size:24px">Hoy te falta</b>'+R.map(function(x){var left=x[2]-x[1],pc=Math.min(100,Math.round(x[1]/x[2]*100));return '<div style="margin:12px 0"><div class="row"><b>'+x[0]+'</b><b style="color:'+(left<0?"#ef4b4b":"inherit")+'">'+(left>=0?"te faltan "+Math.round(left)+" "+x[3]:"te pasaste "+Math.round(-left)+" "+x[3])+'</b></div><div class="mut">'+Math.round(x[1])+" de "+x[2]+" "+x[3]+'</div><div style="height:8px;border-radius:9px;background:var(--bd);margin-top:6px"><div style="height:8px;border-radius:9px;width:'+pc+'%;background:'+(left<0?"#ef4b4b":x[4])+'"></div></div></div>'}).join("")+'<p class="mut">Cargá cada comida con su foto y se descuenta solo.</p></div>'}
+ return '<div class="card"><b class="tt" style="font-size:24px">Hoy te falta</b>'+R.map(function(x){var left=x[2]-x[1],pc=Math.min(100,Math.round(x[1]/x[2]*100));return '<div style="margin:12px 0;cursor:pointer" onclick="faltaVer(\''+x[0]+'\')"><div class="row"><b>'+x[0]+' ›</b><b style="color:'+(left<0?"#ef4b4b":"inherit")+'">'+(left>=0?"te faltan "+Math.round(left)+" "+x[3]:"te pasaste "+Math.round(-left)+" "+x[3])+'</b></div><div class="mut">'+Math.round(x[1])+" de "+x[2]+" "+x[3]+'</div><div style="height:8px;border-radius:9px;background:var(--bd);margin-top:6px"><div style="height:8px;border-radius:9px;width:'+pc+'%;background:'+(left<0?"#ef4b4b":x[4])+'"></div></div></div>'}).join("")+'<p class="mut">Tocá una fila y te muestro los alimentos que más aportan eso.</p></div>'}
 async function addN(){
  var d=$("nd").value.trim();if(!d){alert("Contá qué comiste.");return}
  $("nb").disabled=true;var f=$("nf").files[0],p=null;if(f){p=await subir(f);if(!p){draw();return}}
@@ -644,7 +647,7 @@ function macH(c){
  var O={deficit:"Vas a comer un poco menos de lo que tu cuerpo gasta: ideal para bajar grasa de a poco.",mantener:"Vas a comer lo mismo que tu cuerpo gasta: ideal para mantener tu peso mientras mejorás tu composición corporal.",superavit:"Vas a comer un poco más de lo que tu cuerpo gasta: ideal para ganar masa muscular."},
  t=m.P*4+m.G*9+m.C*4,r=[["Proteínas",m.P,4,"var(--ok)"],["Grasas",m.G,9,"#ffb86b"],["Carbohidratos",m.C,4,"var(--pri)"]];
  return '<div class="card"><b class="tt" style="font-size:26px">Tus macros</b><div class="mut">Objetivo diario</div><div class="card" style="text-align:center"><span class="mut">Calorías </span><b class="tt" style="font-size:48px">'+m.k+'</b></div><p class="mut">'+(O[c.obj]||"")+'</p>'+
- r.map(function(x){var kc=x[1]*x[2],pc=Math.round(kc/t*100);return '<div style="margin:12px 0"><div class="row"><b>'+x[0]+'</b><b>'+x[1]+' g</b></div><div class="mut">'+kc+' kcal · '+pc+'% del total</div><div style="height:8px;border-radius:9px;background:var(--bd);margin-top:6px"><div style="height:8px;border-radius:9px;width:'+pc+'%;background:'+x[3]+'"></div></div></div>'}).join("")+
+ r.map(function(x){var kc=x[1]*x[2],pc=Math.round(kc/t*100);return '<div style="margin:12px 0;cursor:pointer" onclick="faltaVer(\''+x[0]+'\')"><div class="row"><b>'+x[0]+' ›</b><b>'+x[1]+' g</b></div><div class="mut">'+kc+' kcal · '+pc+'% del total</div><div style="height:8px;border-radius:9px;background:var(--bd);margin-top:6px"><div style="height:8px;border-radius:9px;width:'+pc+'%;background:'+x[3]+'"></div></div></div>'}).join("")+
  '<p class="mut">Estimación con la fórmula Mifflin-St Jeor. Es orientativa y no reemplaza a un profesional de la nutrición.</p></div>'}
 var EM={Desayuno:"🍳",Almuerzo:"🍲",Merienda:"🥪",Cena:"🥗",Snack:"🍎"},RF="",RC=[
 ["Desayuno","Tostadas con huevo y palta",398,20,30,22,"2 huevos, 2 rebanadas de pan integral, ¼ de palta","Hacé los huevos a la plancha y servilos sobre las tostadas con la palta pisada."],
@@ -901,7 +904,7 @@ function vLista(){
  mcard("timer","Temporizador Tabata","Intervalos para el core o cardio","#17b8c9","go('tab')")+
  mcard("link","Enlaces y datos de pago","Instagram, WhatsApp, alias","#42a5f5","go('enlaces')")+
  '</div>'+cnav()}
-function cliCard(c){var ok=pagoOk(c);return `<div class="card" onclick="openC('${c.id}')"><div class="row"><b>${esc(c.nombre)}</b><span class="tag ${ok?"ok":"bad"}">${ok?"Pagó"+(c.vence?" · hasta "+fmt(c.vence).slice(0,5):""):(c.pagado&&c.vence?"⏰ Venció "+fmt(c.vence).slice(0,5)+" · revisar pago":"Sin pago")}</span></div><div class="mut">${esc(c.objetivo||"Sin objetivo")}</div>${bdg(c.id)}${ok?"":`<button class="p w" onclick="event.stopPropagation();pagoRapido('${c.id}')">✓ Pagó (suma 1 mes)</button>`}</div>`}
+function cliCard(c){var ok=pagoOk(c);return `<div class="card" onclick="openC('${c.id}')"><div class="row"><b>${esc(c.nombre)}</b><span class="tag ${ok?"ok":"bad"}">${ok?"Pagó"+(c.vence?" · hasta "+fmt(c.vence).slice(0,5):""):(c.pagado&&c.vence?"⏰ Venció "+fmt(c.vence).slice(0,5)+" · revisar pago":"Sin pago")}</span></div><div class="mut">${esc(c.objetivo||"Sin objetivo")}</div>${bdg(c.id)}${ok?"":`<button class="p w" onclick="event.stopPropagation();pagoRapido('${c.id}')">✓ Pagó (suma 1 mes)</button>`}<button class="w" style="color:#ff5c6c" onclick="event.stopPropagation();delCid('${c.id}')">🗑 Borrar alumno</button></div>`}
 function alList(){var q=norm(AFQ||""),l=LIST.filter(function(c){return alOk(c)&&(!q||norm(c.nombre+" "+c.email).indexOf(q)>=0)}).sort(ordC);return l.length?l.map(cliCard).join(""):'<p class="mut">No hay alumnos con ese filtro.</p>'}
 function vAlumnos(){var F=[["all","Todos"],["sinpago","Sin pago"],["vence","Por vencer"],["aldia","Al día"],["pend","Pendientes"],["msg","Chats"],["comp","Comprobantes"],["dev","Devoluciones"],["mol","Molestias"],["sinent","Sin entrenar"],["sinrut","Sin rutina"],["sinsem","Próx. semana"]];
  return `<div class="row"><h1>Alumnos</h1><button class="p" onclick="go('nuevo')">+ Nuevo</button></div><input id="afq" placeholder="🔍 Buscar por nombre o mail" value="${esc(AFQ)}" oninput="AFQ=this.value;$('alist').innerHTML=alList()"><div class="chips">${F.map(function(x){return `<button class="${AFF==x[0]?"p":""}" onclick="AFF='${x[0]}';draw()">${x[1]}</button>`}).join("")}</div><div id="alist">${alList()}</div>`+cnav()}
@@ -954,10 +957,10 @@ function tHoy(){
  hy=dh.length?'<div class="card"><div class="row"><b class="tt" style="font-size:26px">'+dh.map(function(d){return esc(d.titulo)}).join(" + ")+'</b><b>'+n+'/'+tot+'</b></div><div class="bar"><i style="width:'+(tot?Math.round(n/tot*100):0)+'%"></i></div><button class="p w" onclick="goTab(\'entreno\')">Ir a entrenar</button></div>':'<div class="card">Hoy no tenés entrenamiento cargado. Día para descansar o caminar un rato.</div>';
  return(unreadM()?'<button class="p w" onclick="goTab(\'chat\')">💬 Tenés un mensaje nuevo de tu coach</button>':"")+motH()+avisosH()+anamCard()+fotoIniH()+fotoMesH()+rachaH()+'<div class="sec">Tu entrenamiento de hoy</div>'+hy+'<div class="sec">Tu semana</div>'+tiles+(wa?'<div class="sec">Accesos rápidos</div><div class="mgrid">'+wa+'</div>':"")}
 function tEntreno(){
- var ds=wkDay(SEL),h='<h1>Entrenamiento</h1><div class="card">'+calH()+'</div>';
+ var ds=wkDay(SEL),h='<h1>Entrenamiento</h1><button class="p w" onclick="go(\'tab\')">⏱ Tabata (core / cardio)</button><div class="card">'+calH()+'</div>';
  if(!ds.length)h+='<div class="card">Sin entrenamiento cargado el '+fmt(SEL)+(SEL==hoy()?". Día para descansar o caminar un rato.":".")+'</div>';
  else{h+=guiaH();ds.forEach(function(d){var n=cntH([d])[0],tot=d.items.length;h+='<div class="card"><div class="row"><b class="tt" style="font-size:26px">'+esc(d.titulo)+'</b><b>'+n+'/'+tot+'</b></div><div class="bar"><i style="width:'+(tot?Math.round(n/tot*100):0)+'%"></i></div>'+itemsH(d)+'</div>'});
-  if(ds.some(function(d){return d.items.some(function(x){return x.bloque==="Core"})}))h+='<button class="p w" onclick="go(\'tab\')">⏱ Tabata para el core</button>'}
+  }
  return h+nuDiaH(SEL)+'<div class="sec">Accesos rápidos</div><div class="mgrid">'+mcard("timer","Temporizador Tabata","Para el core o el cardio","#17b8c9","go('tab')")+mcard("download","Descargar mi rutina","En PDF","#2f80ed","go('pdf')")+'</div>'}
 
 /* ===== Músculos por ejercicio ===== */
@@ -1038,7 +1041,35 @@ function musSvg(m){
  var ab='<g stroke="#1b2644" stroke-width=".8" opacity=".7"><line x1="45.5" y1="74" x2="54.5" y2="74"/><line x1="45.5" y1="86" x2="54.5" y2="86"/><line x1="50" y1="62" x2="50" y2="99"/></g>';
  var bk=mu("trapecio","M50 28Q42 32 28 38Q38 54 50 72Q62 54 72 38Q58 32 50 28Z",0)+mu("hombros","M26 35Q16 36 13 49Q15 58 22 57Q28 50 29 41Z",1)+mu("dorsales","M30 58Q28 74 38 92L48 90L48 68Q40 66 30 58Z",1)+mu("triceps","M17 54Q11 62 14 71L21 71Q24 62 23 56Z",1)+mu("antebrazos","M12 75Q9 87 10 99L17 99Q20 87 21 75Z",1)+mu("lumbar","M44 88L56 88L57 106Q50 108 43 106Z",0)+mu("gluteos","M50 104Q40 100 32 106Q30 120 40 127Q48 127 50 118Z",1)+mu("abductores","M31 100Q27 108 30 119L34 119L34 102Z",1)+mu("isquios","M34 130Q30 146 33 158L47 158Q49 146 47 130Z",1)+mu("gemelos","M34 164Q30 182 34 198L45 198Q48 182 46 164Z",1);
  return '<svg viewBox="0 0 210 226" role="img" aria-label="Músculos que trabaja este ejercicio">'+defs+'<g>'+base+fr+ab+'</g><g transform="translate(110,0)">'+base+bk+'</g><text x="50" y="224" text-anchor="middle" font-size="9" fill="#9aa6bf">Frente</text><text x="160" y="224" text-anchor="middle" font-size="9" fill="#9aa6bf">Espalda</text></svg>'}
-function musH(x){var m=musDe(x);if(!m)return"";var e=musEst(m);
+/* ===== Mapas kinesiológicos (100 imágenes en la carpeta mapas/) ===== */
+var MAPAS=[[1,"sentadilla libre"],[2,"sentadilla en maquina smith"],[3,"sentadilla bulgara"],[4,"hack squat"],[5,"prensa de piernas"],[6,"extension de piernas"],[7,"zancada"],[8,"sentadilla sumo"],[9,"zancada"],[10,"sentadilla frontal"],[11,"sentadilla con elevacion de talones"],[12,"press de banca con barra"],[13,"press inclinado"],[14,"press inclinado"],[15,"press de banca declinado"],[16,"crucifixo inclinado"],[17,"crossover"],[18,"peck deck"],[19,"flexion de brazos"],[20,"press de pecho en maquina"],[21,"crucifixo en maquina"],[22,"pullover"],[23,"press de pecho con mancuernas"],[24,"press inclinado con mancuernas"],[25,"cruce de polea baja"],[26,"flexion declinada"],[27,"jalon al frente"],[28,"remo en maquina"],[29,"remo en polea baja"],[30,"remo con barra"],[31,"barra fija"],[32,"pull down"],[33,"encogimiento de hombros"],[34,"remo unilateral"],[35,"hiperextension"],[36,"remo con agarre supino"],[37,"remo con barra"],[38,"remada t"],[39,"remada cross"],[40,"desarrollo con mancuernas"],[41,"elevacion lateral"],[42,"elevacion frontal"],[43,"crucifixo invertido"],[44,"desarrollo militar"],[45,"elevacion lateral en polea"],[46,"press arnold"],[47,"face pull"],[48,"desarrollo en maquina"],[49,"elevacion lateral en maquina"],[50,"elevacion lateral unilateral"],[51,"desarrollo en maquina smith"],[52,"manguito rotador"],[53,"curl alternado"],[54,"curl de biceps"],[55,"curl martillo"],[56,"curl en banco scott"],[57,"curl spider"],[58,"curl concentrado"],[59,"curl 21"],[60,"curl en polea"],[61,"curl inverso"],[62,"curl con barra w"],[63,"extension de triceps"],[64,"extension de triceps en polea"],[65,"extension de triceps frances"],[66,"extension de triceps"],[67,"fondos en banco"],[68,"press de banca cerrado para triceps"],[69,"extension de triceps sobre la cabeza"],[70,"fondos en paralelas"],[71,"extension de triceps unilateral en polea"],[72,"extension de triceps unilateral en polea"],[73,"elevacion pelvica"],[74,"maquina de abduccion de cadera"],[75,"extension de cadera en polea patada de gluteo"],[76,"puente de gluteos"],[77,"peso muerto sumo con mancuerna"],[78,"peso muerto rumano"],[79,"plancha"],[80,"abdominal supra"],[81,"abdominal inferior"],[82,"abdominal oblicuo"],[83,"elevacion de piernas"],[84,"abdominal en polea"],[85,"abdominal en maquina"],[86,"ab wheel"],[87,"plancha lateral"],[88,"mountain climber"],[89,"abdominales en bicicleta"],[90,"hollow body"],[91,"russian twist"],[92,"dead bug"],[93,"abdominales en banco declinado"],[94,"clean"],[95,"thruster"],[96,"kettlebell swing"],[97,"snatch"],[98,"burpee"],[99,"box jump"],[100,"plancha con remo"]];
+var MAPST=["de","con","en","la","el","al","a","y","los","las","para","del","un","una"],MAPV=["lateral","unilateral","inverso","invertido","frontal","sumo","declinado","inclinado","bulgara","supino","cerrado","alternado","concentrado"];
+function mpTok(t){return norm(t).split(" ").filter(function(w){return w&&MAPST.indexOf(w)<0}).map(function(w){return w.length>3?w.replace(/s$/,""):w})}
+function mpKey(t){return mpTok(t).join(" ")}
+var MAPG={};MAPAS.forEach(function(m){var k=mpKey(m[1]);(MAPG[k]=MAPG[k]||[]).push(m[0])});
+var MAPAL={"sentadilla":"sentadilla libre","sentadilla con barra":"sentadilla libre","sentadilla trasera":"sentadilla libre","back squat":"sentadilla libre","sentadilla smith":"sentadilla en maquina smith","prensa":"prensa de piernas","prensa 45":"prensa de piernas","prensa inclinada":"prensa de piernas","leg press":"prensa de piernas","extension de rodilla":"extension de piernas","extension de cuadriceps":"extension de piernas","sillon de cuadriceps":"extension de piernas","extension de rodilla en maquina":"extension de piernas","leg extension":"extension de piernas","estocada":"zancada","lunge":"zancada","press banca":"press de banca con barra","press de banca":"press de banca con barra","banca plana":"press de banca con barra","bench press":"press de banca con barra","press plano":"press de banca con barra","press inclinado con barra":"press inclinado","press declinado":"press de banca declinado","cruces en polea":"crossover","cruce de poleas":"crossover","pec deck":"peck deck","flexiones":"flexion de brazos","flexion":"flexion de brazos","push up":"flexion de brazos","jalon al pecho":"jalon al frente","jalon":"jalon al frente","jalon frontal":"jalon al frente","lat pulldown":"jalon al frente","dominadas":"barra fija","dominada":"barra fija","pull up":"barra fija","remo con mancuerna":"remo unilateral","remo a una mano":"remo unilateral","remo sentado":"remo en polea baja","remo en polea":"remo en polea baja","remo t":"remada t","hip thrust":"elevacion pelvica","empuje de cadera":"elevacion pelvica","rdl":"peso muerto rumano","plancha frontal":"plancha","crunch":"abdominal supra","crunch abdominal":"abdominal supra","elevaciones laterales":"elevacion lateral","vuelos laterales":"elevacion lateral","elevaciones frontales":"elevacion frontal","press militar":"desarrollo militar","press de hombros":"desarrollo militar","press hombro":"desarrollo militar","overhead press":"desarrollo militar","press militar con mancuernas":"desarrollo con mancuernas","press de hombro con mancuernas":"desarrollo con mancuernas","pajaros":"crucifixo invertido","vuelos posteriores":"crucifixo invertido","curl":"curl de biceps","curl biceps":"curl de biceps","curl con mancuernas":"curl de biceps","martillo":"curl martillo","fondos":"fondos en paralelas","dips":"fondos en paralelas","triceps en polea":"extension de triceps en polea","pushdown":"extension de triceps en polea","jalon de triceps":"extension de triceps en polea","press frances":"extension de triceps frances","triceps frances":"extension de triceps frances","patada de gluteo":"extension de cadera en polea patada de gluteo","abduccion de cadera":"maquina de abduccion de cadera","puente de gluteo":"puente de gluteos","glute bridge":"puente de gluteos","elevaciones de piernas":"elevacion de piernas","rueda abdominal":"ab wheel","giro ruso":"russian twist","giros rusos":"russian twist","swing":"kettlebell swing","swing con kettlebell":"kettlebell swing","burpees":"burpee","salto al cajon":"box jump","escaladores":"mountain climber","superman":"hiperextension","encogimientos":"encogimiento de hombros","manguito":"manguito rotador","facepull":"face pull"};
+var MAPALK={};Object.keys(MAPAL).forEach(function(a){MAPALK[mpKey(a)]=mpKey(MAPAL[a])});
+function mapaDe(nombre){
+ if(!nombre)return null;var k=mpKey(nombre);if(!k)return null;
+ if(MAPG[k])return MAPG[k];
+ var a=MAPALK[k];if(a&&MAPG[a])return MAPG[a];
+ var t=k.split(" "),best=null,bl=0;
+ Object.keys(MAPG).forEach(function(g){var gt=g.split(" ");
+  if(!(gt.length>=2||gt[0].length>=7))return;
+  if(!gt.every(function(w){return t.indexOf(w)>=0}))return;
+  if(t.some(function(w){return MAPV.indexOf(w)>=0&&gt.indexOf(w)<0}))return;
+  if(gt.length>bl){best=g;bl=gt.length}});
+ return best?MAPG[best]:null}
+function mapaPad(n){return("00"+n).slice(-3)}
+function mapaVer(n){var o=document.createElement("div");o.id="mpv";o.style.cssText="position:fixed;inset:0;z-index:99999;background:#000;overflow:auto;-webkit-overflow-scrolling:touch";
+ o.innerHTML='<button style="position:fixed;top:calc(10px + env(safe-area-inset-top,0px));right:10px;z-index:2;min-height:44px" onclick="document.getElementById(\'mpv\').remove()">✕ Cerrar</button><img src="mapas/'+mapaPad(n)+'.jpg" alt="Mapa del ejercicio" style="width:1100px;max-width:none;display:block;margin-top:60px"><p class="mut" style="padding:8px 12px">Deslizá para recorrer el mapa. También podés hacer zoom con los dedos.</p>';
+ document.body.appendChild(o)}
+function musH(x){
+ var arr=null;try{arr=mapaDe(x&&x.nombre)}catch(e){}
+ var orig="";try{orig=musH0(x)}catch(e){}
+ if(!arr)return orig;
+ return '<div class="mus"><b>🗺 Mapa kinesiológico</b><p class="mut" style="margin:4px 0">Tocá el mapa para verlo en grande.</p>'+arr.map(function(n){return '<img src="mapas/'+mapaPad(n)+'.jpg" alt="Mapa del ejercicio" loading="lazy" style="width:100%;border-radius:12px;margin-top:8px;background:#fff" onclick="mapaVer('+n+')" onerror="this.style.display=\'none\';var f=this.parentNode.querySelector(\'.mpfb\');if(f)f.style.display=\'\'">'}).join("")+'<div class="mpfb" style="display:none">'+orig+'</div></div>'}
+function musH0(x){var m=musDe(x);if(!m)return"";var e=musEst(m);
  function fila(id,c){return '<div class="mr"><i style="background:'+c+'"></i><div><b>'+MU[id][0]+'</b><span>'+MU[id][1]+'</span></div></div>'}
  function blq(t,sub,l,c){return l.length?'<div class="mh"><b style="color:'+c+'">'+t+'</b><small>'+sub+'</small></div>'+l.map(function(i){return fila(i,c)}).join(""):""}
  var nom=function(l){return l.map(function(i){return MU[i][0].toLowerCase()}).join(", ")};
@@ -1064,13 +1095,14 @@ try{
 var PLF="obj";
 function plSet(k){PLF=k;redraw()}
 function plW(cx,cy,r,a0,a1){var p=function(a){return[cx+r*Math.sin(a),cy-r*Math.cos(a)]},s=p(a0),e=p(a1);return"M"+cx+" "+cy+" L"+s[0].toFixed(1)+" "+s[1].toFixed(1)+" A"+r+" "+r+" 0 "+((a1-a0)>Math.PI?1:0)+" 1 "+e[0].toFixed(1)+" "+e[1].toFixed(1)+" Z"}
+function plIco(i,lx,ly,v,em){var p=fotoMap()[norm(PLN[i])],r=v>=20?22:16;if(!p)return'<text x="'+lx.toFixed(1)+'" y="'+(ly-4).toFixed(1)+'" text-anchor="middle" font-size="'+(v>=20?26:20)+'">'+em+'</text>';var cy=ly-4-r*.6;return'<clipPath id="plc'+i+'"><circle cx="'+lx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="'+r+'"/></clipPath><image data-m="'+esc(p)+'" x="'+(lx-r).toFixed(1)+'" y="'+(cy-r).toFixed(1)+'" width="'+2*r+'" height="'+2*r+'" clip-path="url(#plc'+i+')" preserveAspectRatio="xMidYMid slice"/><circle cx="'+lx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="'+r+'" fill="none" stroke="#fff" stroke-width="2"/>'}
 function platoH(c){
  var PR={obj:{deficit:[40,30,20,10],mantener:[30,30,30,10],superavit:[25,30,35,10]},prot:[25,45,20,10],ener:[20,25,45,10]},
  pc=PLF=="prot"?PR.prot:PLF=="ener"?PR.ener:(PR.obj[c.obj]||PR.obj.mantener),
  N=[["🥦","Verduras","#35b36a","Verduras","brócoli, zapallito, tomate, espinaca"],["🥩","Proteína","#e8575a","Proteína","carne, pollo, pescado, huevo"],["🍚","Carbohidratos","#f5a623","Arroz y más","arroz, fideos, papa, pan"],["🥑","Grasas","#9b6bd6","Grasas","palta, aceite de oliva, frutos secos"]],
  m=macros(c),a=0,sv="",lg="";
  pc.forEach(function(v,i){var a1=a+v/100*2*Math.PI,mid=(a+a1)/2,lx=130+76*Math.sin(mid),ly=130-76*Math.cos(mid);
-  sv+='<path d="'+plW(130,130,104,a,a1)+'" fill="'+N[i][2]+'" stroke="#1a2540" stroke-width="3" style="animation-delay:'+(i*.12)+'s"/>'+'<text x="'+lx.toFixed(1)+'" y="'+(ly-4).toFixed(1)+'" text-anchor="middle" font-size="'+(v>=20?26:20)+'">'+N[i][0]+'</text><text x="'+lx.toFixed(1)+'" y="'+(ly+(v>=20?14:11)).toFixed(1)+'" text-anchor="middle" font-size="'+(v>=20?13:11)+'" font-weight="700" fill="#fff" stroke="rgba(0,0,0,.35)" stroke-width=".6" paint-order="stroke">'+N[i][3]+'</text><text x="'+lx.toFixed(1)+'" y="'+(ly+(v>=20?29:23)).toFixed(1)+'" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" stroke="rgba(0,0,0,.35)" stroke-width=".6" paint-order="stroke">'+v+'%</text>';a=a1});
+  sv+='<path d="'+plW(130,130,104,a,a1)+'" fill="'+N[i][2]+'" stroke="#1a2540" stroke-width="3" style="animation-delay:'+(i*.12)+'s"/>'+plIco(i,lx,ly,v,N[i][0])+'<text x="'+lx.toFixed(1)+'" y="'+(ly+(v>=20?14:11)).toFixed(1)+'" text-anchor="middle" font-size="'+(v>=20?13:11)+'" font-weight="700" fill="#fff" stroke="rgba(0,0,0,.35)" stroke-width=".6" paint-order="stroke">'+N[i][3]+'</text><text x="'+lx.toFixed(1)+'" y="'+(ly+(v>=20?29:23)).toFixed(1)+'" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" stroke="rgba(0,0,0,.35)" stroke-width=".6" paint-order="stroke">'+v+'%</text>';a=a1});
  var por=function(g,u,d){return m&&g?Math.max(1,Math.round(g/4/u))+" "+d:""};
  var T=[["Verduras","a gusto: 2 puños por comida, de todos los colores"],["Proteína",m?"≈ "+Math.round(m.P/4)+" g por comida · "+por(m.P,25,"palma(s) de la mano"):"1 palma de la mano por comida"],["Carbohidratos",m?"≈ "+Math.round(m.C/4)+" g por comida · "+por(m.C,30,"puño(s) cocidos"):"1 puño por comida"],["Grasas",m?"≈ "+Math.round(m.G/4)+" g por comida · "+por(m.G,10,"pulgar(es) / cucharada(s)"):"1 pulgar por comida"]];
  T.forEach(function(t,i){lg+='<div class="row" style="margin:8px 0;align-items:flex-start">'+fotoPl(i,N[i][2])+'<span style="flex:1;margin-left:10px"><b>'+N[i][0]+' '+N[i][1]+' · '+pc[i]+'% del plato</b><br><span style="font-size:14px">Ej: '+N[i][4]+'</span><br><span class="mut">'+t[1]+'</span></span></div>'});
@@ -1169,7 +1201,7 @@ pendC=function(c){return _pendC(c)||!!(PEND[c.id]&&PEND[c.id].r)};
 
 /* ===== v49: fotos reales de alimentos, GIF para el cliente, aviso del micrófono ===== */
 function fotoMap(){try{return JSON.parse(CFG.imgs_alimentos||"{}")}catch(e){return{}}}
-function fotoAl(n,css,fb){var p=fotoMap()[norm(n)];return p?'<img data-m="'+esc(p)+'" data-fb="'+esc(fb||"")+'" alt="" style="'+css+'">':""}
+function fotoAl(n,css,fb){var M=fotoMap(),k=norm(n),p=M[k];if(!p){var ks=Object.keys(M),q=k.replace(/s$/,"");var h=ks.filter(function(z){return z.replace(/s$/,"")==q})[0]||ks.filter(function(z){return z.length>3&&(k.indexOf(z)==0||z.indexOf(k)==0)})[0];if(h)p=M[h]}return p?'<img data-m="'+esc(p)+'" data-fb="'+esc(fb||"")+'" alt="" style="'+css+'">':""}
 var PLN=["Plato verduras","Plato proteína","Plato carbohidratos","Plato grasas"];
 function fotoPl(i,col){return fotoAl(PLN[i],"width:56px;height:56px;border-radius:12px;object-fit:cover;flex:none",["🥦","🍗","🍚","🥑"][i])||'<span style="flex:none;width:14px;height:14px;border-radius:5px;background:'+col+';margin-top:4px"></span>'}
 nutH=function(){
@@ -1348,7 +1380,11 @@ async function fotoRap(inp){var f=inp.files[0];if(!f)return;var o=$("frs"),b=$("
  try{var im=await new Promise(function(ok,no){var i=new Image();i.onload=function(){var s=Math.min(1,1024/Math.max(i.width,i.height)),c=document.createElement("canvas");c.width=i.width*s;c.height=i.height*s;c.getContext("2d").drawImage(i,0,0,c.width,c.height);ok(c.toDataURL("image/jpeg",.8).split(",")[1])};i.onerror=function(){no("img")};i.src=URL.createObjectURL(f)});
   var r=await sb.functions.invoke("analizar-plato",{body:{imagen:im,nota:""}});
   if(r.error)throw "fn";if(!r.data||r.data.error)throw (r.data&&r.data.error)||"vacío";
-  var q=r.data;if(!q.kcal)throw "nokcal";
+  var q=r.data;if(typeof q=="string"){try{q=JSON.parse(q.replace(/```json|```/g,"").trim())}catch(e){q={}}}
+  q=q.resultado||q.plato||q.data||q;var nn=function(){for(var j=0;j<arguments.length;j++){var v=parseFloat(String(q[arguments[j]]).replace(",","."));if(!isNaN(v))return v}return 0};
+  q.proteina_g=nn("proteina_g","proteina","proteinas","prot","protein_g");q.carbos_g=nn("carbos_g","carbohidratos_g","carbohidratos","carbos","carb","carbs_g");q.grasas_g=nn("grasas_g","grasas","gras","grasa_g","fat_g");
+  q.kcal=nn("kcal","calorias","calorías","calories")||Math.round(q.proteina_g*4+q.carbos_g*4+q.grasas_g*9);
+  if(!q.kcal){console.log("analizar-plato devolvió:",r.data);throw "nokcal"}
   o.textContent="Guardando en tu día…";
   var p=await subir(f,null,true),desc=String(q.descripcion||q.texto||"").replace(/\*\*/g,"").slice(0,300),
   ins=await sb.from("comidas").insert({cliente_id:CUR.c.id,momento:mo,descripcion:desc,foto:p,kcal:Math.round(q.kcal),prot:Math.round(q.proteina_g||0),carb:Math.round(q.carbos_g||0),gras:Math.round(q.grasas_g||0)});
@@ -1486,6 +1522,9 @@ buscarGifs=async function(){var st=$("gprog"),L=LIB.filter(function(e){return!e.
 try{
 var ANP={};
 TABK.analisis="prog";
+function anFo(d){return d.fotos&&d.fotos.length?'<p class="mut" style="margin:6px 0">Fotos analizadas (tocá para ampliar):</p><div class="mgal">'+d.fotos.map(function(p){return'<div class="mth" onclick="anBig(\''+esc(p)+'\')"><img data-p="'+esc(p)+'" alt=""></div>'}).join("")+'</div>':'<p class="mut" style="font-size:13px">Análisis anterior: no guardó qué foto se usó.</p>'}
+async function anBig(p){var r=await sb.storage.from("archivos").createSignedUrl(p,600);if(r.data)window.open(r.data.signedUrl,"_blank")}
+function anRutina(i,t){var v=function(k){return($("an_"+k+i)||{}).value||""},d=((CUR.an||[]).find(function(z){return z.id==i})||{}).datos||{},z=v("z")||(d.zonas||[]).join("\n"),x=v("x")||(d.ejercicios||[]).join("\n"),n=v("n")||(d.nutricion||[]).join("\n");IACLI=CUR.c.id;IAPRE=t=="n"?"Armá un menú de 7 días para "+CUR.c.nombre+" desde mañana, respetando su objetivo, sus macros y lo que no come, siguiendo estas indicaciones del análisis corporal:\n"+n:"Armá la rutina de la semana para "+CUR.c.nombre+" (dejala sin aprobar para que yo la revise), teniendo en cuenta este análisis corporal. Zonas a priorizar:\n"+z+"\nEjercicios sugeridos:\n"+x;go("ia")}
 function anLines(t){return String(t||"").split("\n").map(function(x){return x.trim()}).filter(Boolean)}
 function anLi(a){return(a&&a.length)?'<ul style="margin:6px 0;padding-left:20px">'+a.map(function(x){return'<li>'+esc(x)+'</li>'}).join("")+'</ul>':""}
 function anBody(d){
@@ -1496,22 +1535,22 @@ function anBody(d){
  +(d.ejercicios&&d.ejercicios.length?'<b>🏋 Ejercicios</b>'+anLi(d.ejercicios):'')
  +(d.nutricion&&d.nutricion.length?'<b>🍽 Nutrición</b>'+anLi(d.nutricion):'')
  +'<p class="mut" style="font-size:13px">Es una estimación visual orientativa, no una medición ni un diagnóstico. Cambia con la luz, la postura y la ropa.</p>'}
-function anCliH(){var a=(CUR.an||[]).filter(function(x){return x.estado=="aprobado"});if(!a.length)return"";var x=a[a.length-1];
+function anCliH(){return"";var a=(CUR.an||[]).filter(function(x){return x.estado=="aprobado"});if(!a.length)return"";var x=a[a.length-1];
  return'<h2>Análisis de tus fotos</h2><div class="card">'+anBody(x.datos||{})+'<p class="mut">Revisado por tu coach · '+fmt(String(x.aprobado_en||x.creado).slice(0,10))+'</p></div>'}
 function anCoachH(){
  var L=(CUR.an||[]).filter(function(x){return x.estado!="descartado"}).reverse(),menor=+CUR.c.edad&&+CUR.c.edad<18,
- h='<div class="card"><b>🔬 Análisis de cuerpo con IA</b><p class="mut">Se genera solo cuando el alumno sube sus fotos (uno por mes) o cuando vos lo pedís. El alumno no ve nada hasta que lo apruebes. La foto no mide la grasa de verdad: revisalo y corregilo antes de aprobar.</p>'+(menor?'<p class="bad">⚠ Es menor de 18 años: no se genera.</p>':'<button class="p w" id="anb" onclick="pedirAnalisis(false)">✨ Generar con las últimas fotos</button>')+'</div>';
+ h='<div class="card"><b>🔬 Análisis de cuerpo con IA</b><p class="mut">Se genera solo cuando el alumno sube sus fotos (uno por mes) o cuando vos lo pedís. El alumno nunca ve este análisis: es solo para vos. Al confirmar, pasa a la rutina. La foto no mide la grasa de verdad: revisalo y corregilo antes de aprobar.</p>'+(menor?'<p class="bad">⚠ Es menor de 18 años: no se genera.</p>':'<button class="p w" id="anb" onclick="pedirAnalisis(false)">✨ Generar con las últimas fotos</button>')+'</div>';
  if(!L.length)return h+'<p class="mut">Todavía no hay análisis.</p>';
  L.forEach(function(x){var d=x.datos||{},i=x.id;
-  if(x.estado=="borrador")h+='<div class="card"><div class="row"><b>Borrador · '+fmt(String(x.creado).slice(0,10))+'</b><span class="tag bad">Sin aprobar</span></div>'
+  if(x.estado=="borrador")h+='<div class="card"><div class="row"><b>Borrador · '+fmt(String(x.creado).slice(0,10))+'</b><span class="tag bad">Sin aprobar</span></div>'+anFo(d)
    +'<div class="g2"><div><label>Grasa mín. (%)</label><input id="an_a'+i+'" type="number" inputmode="decimal" value="'+esc(d.grasa_min==null?"":d.grasa_min)+'"></div><div><label>Grasa máx. (%)</label><input id="an_b'+i+'" type="number" inputmode="decimal" value="'+esc(d.grasa_max==null?"":d.grasa_max)+'"></div></div>'
    +'<label>Biotipo</label><input id="an_s'+i+'" value="'+esc(d.somatotipo||"")+'"><label>Explicación del biotipo</label><input id="an_e'+i+'" value="'+esc(d.somatotipo_explicacion||"")+'">'
    +'<label>Resumen</label><textarea id="an_r'+i+'" rows="3">'+esc(d.resumen||"")+'</textarea>'
    +'<label>Para priorizar (una por línea)</label><textarea id="an_z'+i+'" rows="2">'+esc((d.zonas||[]).join("\n"))+'</textarea>'
    +'<label>Ejercicios (uno por línea)</label><textarea id="an_x'+i+'" rows="4">'+esc((d.ejercicios||[]).join("\n"))+'</textarea>'
    +'<label>Nutrición (una por línea)</label><textarea id="an_n'+i+'" rows="4">'+esc((d.nutricion||[]).join("\n"))+'</textarea>'
-   +'<div class="g2"><button class="p" onclick="anAprobar(\''+i+'\')">✅ Aprobar y enviar</button><button onclick="anDescartar(\''+i+'\')">Descartar</button></div></div>';
-  else h+='<div class="card"><div class="row"><b>'+fmt(String(x.creado).slice(0,10))+'</b><span class="tag ok">Aprobado ✓</span></div>'+anBody(d)+'<button class="w" onclick="anDescartar(\''+i+'\')">Quitarle este análisis al alumno</button></div>'});
+   +'<div class="g2"><button onclick="anRutina(\''+i+'\',\'r\')">📋 Cargar como rutina</button><button onclick="anRutina(\''+i+'\',\'n\')">🍽 Cargar menú</button></div><div class="g2"><button class="p" onclick="anAprobar(\''+i+'\')">✅ Confirmar y pasar a la rutina</button><button onclick="anDescartar(\''+i+'\')">Descartar</button></div></div>';
+  else h+='<div class="card"><div class="row"><b>'+fmt(String(x.creado).slice(0,10))+'</b><span class="tag ok">Aprobado ✓</span></div>'+anFo(d)+anBody(d)+'<div class="g2"><button onclick="anRutina(\''+i+'\',\'r\')">📋 Cargar como rutina</button><button onclick="anRutina(\''+i+'\',\'n\')">🍽 Cargar menú</button></div><button class="w" onclick="anDescartar(\''+i+'\')">Descartar este análisis</button></div>'});
  return h}
 async function pedirAnalisis(auto){var b=$("anb");if(b){b.disabled=true;b.textContent="Analizando… puede tardar unos segundos"}
  try{var r=await sb.functions.invoke("analizar-cuerpo",{body:{cliente_id:CUR.c.id,force:!auto&&coach()}});
@@ -1520,11 +1559,10 @@ async function pedirAnalisis(auto){var b=$("anb");if(b){b.disabled=true;b.textCo
   if(!auto){await loadCur(CUR.c.id);OPEN.analisis=true;redraw();toast(r.data&&r.data.skipped?"Ya hay un análisis reciente.":"✓ Análisis listo para que lo revises")}
  }catch(e){if(!auto)alert(String(e));if(b){b.disabled=false;b.textContent="✨ Generar con las últimas fotos"}}}
 async function anAprobar(i){var v=function(k){return($("an_"+k+i)||{}).value||""},n=function(k){var x=parseFloat(v(k));return isNaN(x)?null:x};
- var d={grasa_min:n("a"),grasa_max:n("b"),somatotipo:v("s").trim(),somatotipo_explicacion:v("e").trim(),resumen:v("r").trim(),zonas:anLines(v("z")),ejercicios:anLines(v("x")),nutricion:anLines(v("n"))};
+ var d={grasa_min:n("a"),grasa_max:n("b"),somatotipo:v("s").trim(),somatotipo_explicacion:v("e").trim(),resumen:v("r").trim(),zonas:anLines(v("z")),ejercicios:anLines(v("x")),nutricion:anLines(v("n")),fotos:((CUR.an||[]).find(function(z){return z.id==i})||{datos:{}}).datos.fotos||[]};
  var r=await sb.from("analisis_cuerpo").update({estado:"aprobado",datos:d,aprobado_en:new Date().toISOString()}).eq("id",i);
  if(r.error){alert(r.error.message);return}
- await sb.from("mensajes").insert({cliente_id:CUR.c.id,de:"coach",texto:"📋 Revisé tus fotos y te dejé un análisis en Progreso."});
- await loadCur(CUR.c.id);redraw();toast("✓ Aprobado: ya lo ve el alumno")}
+ await loadCur(CUR.c.id);redraw();toast("✓ Confirmado: pasalo a la rutina");try{anRutina(i,"r")}catch(e){}}
 async function anDescartar(i){if(!confirm("¿Descartar este análisis? El alumno no lo va a ver."))return;
  var r=await sb.from("analisis_cuerpo").update({estado:"descartado"}).eq("id",i);if(r.error){alert(r.error.message);return}
  await loadCur(CUR.c.id);redraw()}
@@ -1762,7 +1800,7 @@ async function analizarSel(){var ids=Object.keys(ANSEL).filter(function(k){retur
   var r=await sb.functions.invoke("asistente",{body:{messages:[{role:"user",content:im.concat([{type:"text",text:p}])}],cliente:null}});
   if(r.error){var m=r.error.message;try{var j=await r.error.context.json();m=j.error||m}catch(e){}throw m}
   var tx=(r.data.content||[]).filter(function(x){return x.type=="text"}).map(function(x){return x.text}).join("\n"),i0=tx.indexOf("{"),i1=tx.lastIndexOf("}");if(i0<0||i1<i0)throw "La IA no devolvió un análisis válido. Probá de nuevo.";
-  var d=JSON.parse(tx.slice(i0,i1+1)),ins=await sb.from("analisis_cuerpo").insert({cliente_id:c.id,estado:"borrador",datos:d});
+  var d=JSON.parse(tx.slice(i0,i1+1));d.fotos=ids.map(function(k){var a=CUR.adj.find(function(z){return z.id==k});return a&&a.path}).filter(Boolean);var ins=await sb.from("analisis_cuerpo").insert({cliente_id:c.id,estado:"borrador",datos:d});
   if(ins.error)throw "No se pudo guardar el análisis: "+ins.error.message;
   await loadCur(c.id);OPEN.analisis=true;redraw();toast("✓ Análisis listo: revisalo y aprobalo")}
  catch(e){ANERR="No se pudo generar: "+(e&&e.message||e);redraw()}}
@@ -1911,9 +1949,12 @@ var _cH113=cargarH;cargarH=function(){return _cH113().replace('<input id="nf" ty
 /* ===== v114: fotos también en la lista de Alimentos, renombrar ejercicios, copiar nombres ===== */
 try{(function(){
 var _al=alNombres;alNombres=function(){var o=_al();try{FD.forEach(function(f){var k=norm(f[0]);if(!o[k])o[k]=f[0]})}catch(e){}return o};
+var FSORT="";
+function faltaVer(n){FSORT=n;FQ="";FCT="";NT="alim";draw();scrollTo(0,0)}
 fListH=function(){var q=norm(FQ),l=[];FD.forEach(function(f,i){if(FCT&&f[1]!==FCT)return;if(q&&norm(f[0]).indexOf(q)<0)return;l.push([f,i])});
  if(!l.length)return '<div class="card mut">No encontré ese alimento.</div>';
- return l.map(function(p){var f=p[0],im=fotoAl(f[0],"width:52px;height:52px;border-radius:10px;object-fit:cover;flex:none","🍽");return '<button class="fr" style="--c:#2ecc8f" onclick="abrirAl('+p[1]+')">'+im+'<span style="flex:1;min-width:0"><b>'+esc(f[0])+'</b><div class="mut">'+f[2]+' kcal · P '+f[3]+' · C '+f[4]+' · G '+f[5]+'</div></span><span class="mut">›</span></button>'}).join("")};
+ var FI={Calorías:2,Proteínas:3,Carbohidratos:4,Grasas:5}[FSORT],hd="";if(FI){l.sort(function(a,b){return b[0][FI]-a[0][FI]});l=l.slice(0,40);hd='<div class="card"><b>Para completar tus '+FSORT.toLowerCase()+'</b><p class="mut">Los alimentos que más aportan, de mayor a menor (por 100 g).</p><button class="w" onclick="FSORT=\'\';fRender()">Ver todos por orden alfabético</button></div>'}
+ return hd+l.map(function(p){var f=p[0],im=fotoAl(f[0],"width:52px;height:52px;border-radius:10px;object-fit:cover;flex:none","🍽");return '<button class="fr" style="--c:#2ecc8f" onclick="abrirAl('+p[1]+')">'+im+'<span style="flex:1;min-width:0"><b>'+esc(f[0])+'</b><div class="mut">'+f[2]+' kcal · P '+f[3]+' · C '+f[4]+' · G '+f[5]+'</div></span><span class="mut">›</span></button>'}).join("")};
 fRender=function(){var e=$("fl");if(e){e.innerHTML=fListH();try{imgs()}catch(x){}}};
 var _d114=draw;draw=function(){_d114();try{imgs()}catch(e){}};
 var _libH114=libH;libH=function(){var h=_libH114();
@@ -1938,7 +1979,7 @@ document.addEventListener("click",function(e){if(e.target.closest&&e.target.clos
 
 /* ---------- 2) Videos: elegir el nombre de la lista (o que la IA lo sugiera) ---------- */
 var STG=[];
-function pre(f){var b=f.name.replace(/\.[^.]+$/,"");if(/^[\d_\-\s()]+$/.test(b)||/^(vid|img|pxl|mvimg|screen|video)/i.test(b))return"";b=b.replace(/[-_]+/g," ").replace(/\(\d+\)\s*$/,"").replace(/\s+\d+\s*$/,"").trim().toLowerCase();return b.charAt(0).toUpperCase()+b.slice(1)}
+function pre(f){var b=f.name.replace(/\.[^.]+$/,"");if(/^[\d_\-\s()]+$/.test(b)||/^(vid|img|pxl|mvimg|screen|video)[_\-\s]?\d/i.test(b))return"";b=b.replace(/_+/g," ").replace(/\(\d+\)\s*$/,"").replace(/\s+\d+\s*$/,"").trim().toLowerCase();return b.charAt(0).toUpperCase()+b.slice(1)}
 window.stageLib=function(inp){STG=Array.prototype.slice.call(inp.files);var e=$("lstage");if(!e)return;
  var o=LIB.slice().sort(function(a,b){return(a.gif?1:0)-(b.gif?1:0)||String(a.nombre).localeCompare(b.nombre)}).map(function(x){return{v:x.nombre,t:x.nombre,s:x.gif?"":"sin video"}});
  e.innerHTML=STG.map(function(f,i){var u=URL.createObjectURL(f),v=/^video/.test(f.type);return '<div style="margin:14px 0">'+(v?'<video src="'+u+'" muted playsinline preload="metadata" controls style="width:100%;max-height:200px;border-radius:10px;background:#000"></video>':'<img src="'+u+'" style="width:100%;max-height:200px;object-fit:contain;border-radius:10px">')+cbH("sn"+i,o,"Tocá y elegí el ejercicio (o escribí uno nuevo)",pre(f))+'<button type="button" class="w" onclick="sugerirNombre('+i+')">Sugerir nombre con IA</button></div>'}).join("")};
@@ -2082,6 +2123,327 @@ var _dpN115=dpNutri;dpNutri=function(){var h=_dpN115();if(!coach())return h;var 
  return '<div class="card"><b>Armar comida con alimentos</b><p class="mut">Elegí alimentos y gramos: la app suma proteínas, carbohidratos y grasas, y el alumno lo ve con foto.</p><div class="g2"><div><label>Fecha</label><input type="date" id="pbf" value="'+d+'"></div><div><label>Momento</label><select id="pbm">'+opts(MOM,"Almuerzo")+'</select></div></div><label>Alimento</label>'+cbH("pba",FD.map(function(f){return{v:f[0],t:f[0],s:f[1]}}),"Tocá y buscá (ej: merluza)","")+'<label>Cantidad (g o ml)</label><input id="pbg" type="number" inputmode="decimal" value="100"><button class="w" onclick="pbAdd()">Agregar a la comida</button><div id="pbl">'+pbListH()+'</div><button class="p w" onclick="pbSave()">Guardar en el menú del alumno</button></div>'+h};
 })()}catch(e){console.error("v115",e)}
 
+
+/* ===== recetas propias con foto + borrar viejas por filtro ===== */
+try{
+var RC0=RC.slice();
+function recJ(k){try{var a=JSON.parse(CFG[k]||"[]");return Array.isArray(a)?a:[]}catch(e){return[]}}
+function recSync(){var oc=recJ("recetas_ocultas");RC=RC0.filter(function(r){return oc.indexOf(r[1])<0}).concat(recJ("recetas_extra").map(function(x){var r=[x.m,x.n,x.k||0,x.p||0,x.c||0,x.g||0,x.i||"",x.s||""];r.id=x.id;r.foto=x.f||"";return r}))}
+async function recSave(k,a){var v=JSON.stringify(a),r=await sb.from("config").upsert({clave:k,valor:v});if(r.error){alert("No se pudo guardar: "+r.error.message);return false}CFG[k]=v;return true}
+function recMgrH(){var n=recJ("recetas_extra").length;return '<details class="card"><summary style="cursor:pointer"><b>➕ Cargar receta · 🗑 borrar viejas</b></summary><label>Momento</label><select id="rx_m">'+opts(MOM,RF||"Almuerzo")+'</select><label>Nombre</label><input id="rx_n"><div class="g2"><div><label>Kcal</label><input id="rx_k" type="number" inputmode="numeric"></div><div><label>Proteína (g)</label><input id="rx_p" type="number" inputmode="decimal"></div><div><label>Carbos (g)</label><input id="rx_c" type="number" inputmode="decimal"></div><div><label>Grasas (g)</label><input id="rx_g" type="number" inputmode="decimal"></div></div><label>Ingredientes</label><textarea id="rx_i" rows="3"></textarea><label>Preparación</label><textarea id="rx_s" rows="3"></textarea><label>Foto</label><input id="rx_f" type="file" accept="image/*"><button class="p w" id="rx_b" onclick="recAdd()">Guardar receta</button><p class="mut" style="margin-top:14px"><b>Borrar viejas</b> · usa el filtro de arriba ('+(RF||"Todas")+')</p><button class="w" onclick="recDelFiltro(\'mias\')">🗑 Borrar las que cargué yo ('+n+')</button><button class="w" onclick="recDelFiltro(\'pre\')">🗑 Sacar las precargadas</button></details>'}
+recTabH=function(){recSync();var l=[];RC.forEach(function(r,i){if(!RF||r[0]===RF)l.push([r,i])});
+ return '<div class="chips">'+[""].concat(MOM).map(function(m){return '<button class="'+(RF===m?"p":"")+'" onclick="RF=\''+m+'\';draw()">'+(m||"Todas")+'</button>'}).join("")+'</div><p class="mut">'+l.length+' recetas · valores aproximados por porción</p>'+(coach()?recMgrH():"")+
+ l.map(function(p){var r=p[0],ic=r.foto?'<img data-m="'+esc(r.foto)+'" data-fb="'+EM[r[0]]+'" alt="" style="width:52px;height:52px;border-radius:10px;object-fit:cover;flex:none">':'<span class="fi" style="font-size:24px"><span style="position:relative">'+EM[r[0]]+'</span></span>';return '<button class="fr" style="--c:#ff6b3d" onclick="abrirRec('+p[1]+')">'+ic+'<span style="flex:1;min-width:0"><span class="mut">'+r[0]+'</span><br><b>'+esc(r[1])+'</b><div class="mut">'+r[2]+' kcal · P '+r[3]+' · C '+r[4]+' · G '+r[5]+'</div></span><span class="mut">›</span></button>'}).join("")};
+recetasH=function(){recSync();return DP("rec","🍳 Recetas ("+RC.length+")",recTabH())};
+abrirRec=function(i){var r=RC[i];if(!r)return;modalEj('<div class="row"><h1 style="margin:0;font-size:26px">'+esc(r[1])+'</h1><button onclick="cerrarEj()" aria-label="Cerrar">✕</button></div><p class="mut">'+r[0]+' · por porción</p>'+(r.foto?'<img data-m="'+esc(r.foto)+'" alt="" style="width:100%;border-radius:14px;margin:6px 0">':"")+'<div class="card"><div class="row" style="gap:16px;justify-content:flex-start">'+ringH(r[2],r[3],r[4],r[5],120)+'</div><div style="margin-top:14px">'+macBarsH(r[3],r[4],r[5],null)+'</div></div><div class="card"><b>Ingredientes</b><p style="white-space:pre-wrap">'+esc(r[6])+'</p></div><div class="card"><b>Preparación</b><p style="white-space:pre-wrap">'+esc(r[7])+'</p></div>'+(coach()?'<button class="w" onclick="recDel1('+i+')">🗑 '+(r.id?"Borrar":"Sacar")+' esta receta</button>':""));try{imgs()}catch(e){}};
+async function recAdd(){var v=function(k){return($("rx_"+k)||{}).value||""},n=v("n").trim(),mm=v("m");if(!n){alert("Poné el nombre de la receta.");return}var b=$("rx_b");b.disabled=true;var f=$("rx_f").files[0],ph="";
+ if(f){ph=await subir(f,"biblioteca",true)||"";if(!ph){alert("No se pudo subir la foto: "+SUBERR);b.disabled=false;return}}
+ var a=recJ("recetas_extra");a.push({id:"r"+Date.now(),m:mm,n:n,k:+v("k")||0,p:+v("p")||0,c:+v("c")||0,g:+v("g")||0,i:v("i").trim(),s:v("s").trim(),f:ph,d:hoy()});
+ if(await recSave("recetas_extra",a)){toast("✓ Receta guardada");RF=mm}b.disabled=false;draw()}
+async function recDelFiltro(t){var lab=RF||"todas las comidas";
+ if(t=="mias"){var a=recJ("recetas_extra"),k=a.filter(function(x){return!RF||x.m===RF});if(!k.length){alert("No hay recetas tuyas en este filtro.");return}if(!confirm("¿Borrar "+k.length+" receta(s) que cargaste ("+lab+")?"))return;await recSave("recetas_extra",a.filter(function(x){return k.indexOf(x)<0}))}
+ else{var oc=recJ("recetas_ocultas"),k2=RC0.filter(function(r){return(!RF||r[0]===RF)&&oc.indexOf(r[1])<0});if(!k2.length){alert("No quedan precargadas en este filtro.");return}if(!confirm("¿Sacar "+k2.length+" receta(s) precargadas ("+lab+")? Dejan de verse para todos."))return;await recSave("recetas_ocultas",oc.concat(k2.map(function(r){return r[1]})))}
+ draw()}
+async function recDel1(i){var r=RC[i];if(!r||!confirm("¿"+(r.id?"Borrar":"Sacar")+" «"+r[1]+"»?"))return;
+ if(r.id)await recSave("recetas_extra",recJ("recetas_extra").filter(function(x){return x.id!==r.id}));else await recSave("recetas_ocultas",recJ("recetas_ocultas").concat([r[1]]));cerrarEj();draw()}
+}catch(e){console.error("recetas",e)}
+
+/* ===== retos: el cliente reclama con prueba (foto/video con fecha), la coach acepta ===== */
+try{
+async function rtVer(p){var r=await sb.storage.from("archivos").createSignedUrl(p,600);if(r.data)window.open(r.data.signedUrl,"_blank")}
+function rtF(a){var d=/^\d{4}-\d\d-\d\d$/.test(a.plano||"")?a.plano:String(a.creado).slice(0,10);return fmt(d)}
+function rtPruebas(r){var L=(CUR.adj||[]).filter(function(a){return a.tipo=="Prueba reto "+r.id});if(!L.length)return"";
+ return '<p class="mut" style="margin:10px 0 4px">📎 Pruebas (tocá para ver):</p><div class="mgal">'+L.map(function(a){var v=/\.(mp4|mov|webm|m4v|3gp)$/i.test(a.path);return '<div class="mth" onclick="rtVer(\''+esc(a.path)+'\')">'+(v?'<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:30px">🎬</div>':'<img data-p="'+esc(a.path)+'" alt="">')+'<span class="mtn">'+rtF(a).slice(0,5)+(v?" · video":"")+'</span></div>'}).join("")+'</div><p class="mut" style="font-size:12px">Fecha de cada foto/video. Subido el '+fmt(String(L[L.length-1].creado).slice(0,10))+'.</p>'}
+var _rtCard=rtCard;
+rtCard=function(r,co){var h=_rtCard(r,co),pr=rtPruebas(r);
+ h=h.replace("¡Lo logré! Pedir mi premio","¡Lo logré! Subir prueba y pedir premio");
+ if(co&&r.estado=="pedido"){h=h.replace("✅ Validar y entregar premio","✅ Aceptar y entregar premio")+'<button class="w" onclick="rtRech(\''+r.id+'\')">↩ Rechazar (pedir otra prueba)</button>'}
+ if(!pr&&!(co&&r.estado=="pedido"))return h;
+ var k=h.lastIndexOf("</div>");return h.slice(0,k)+pr+(co&&r.estado=="pedido"&&!pr?'<p class="mut">No subió pruebas.</p>':"")+h.slice(k)};
+function rtRech(id){if(confirm("¿Rechazar el pedido? El alumno va a poder subir otra prueba."))rtUp(id,{estado:"activo"})}
+rtReclamar=function(id){var i=document.createElement("input");i.type="file";i.accept="image/*,video/*";i.multiple=true;i.style.display="none";
+ i.onchange=async function(){var fs=[].slice.call(i.files).slice(0,3);i.remove();if(!fs.length)return;toast("Subiendo tu prueba…");
+  try{for(var k=0;k<fs.length;k++){var f=fs[k],ph=await subir(f,null,true);if(!ph){alert("No se pudo subir: "+SUBERR);return}
+   var r=await sb.from("adjuntos").insert({cliente_id:CUR.c.id,tipo:"Prueba reto "+id,plano:ymd(new Date(f.lastModified||Date.now())),path:ph});if(r.error){alert(r.error.message);return}}
+   var q=await sb.rpc("reclamar_reto",{p_id:id});if(q.error){alert(q.error.message);return}
+   await loadCur(CUR.c.id);await rtReload();redraw();toast("✓ Enviado. Tu coach lo revisa")}catch(e){alert(e&&e.message||e)}};
+ document.body.appendChild(i);i.click()};
+}catch(e){console.error("retos prueba",e)}
+
+/* ===== Kinesio-Visual: Ruta de 7 días, Checklist de 60 segundos y Prácticas (20 fichas) ===== */
+try{
+var KV={p:"home",d:1,e:1,rev:{}};
+window.KV=KV;
+function kvLoad(k,def){try{var v=JSON.parse(localStorage.getItem(k));return v||def}catch(e){return def}}
+function kvSave(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+var KVD=kvLoad("kv_dias",{}),KVP=kvLoad("kv_prac",{});
+
+/* estilos */
+(function(){var s=document.createElement("style");s.textContent=
+".kvt{border-collapse:collapse;width:100%;font-size:14px;margin:8px 0}.kvt th,.kvt td{border:1px solid var(--bd);padding:7px 8px;text-align:left;vertical-align:top}.kvt th{background:var(--bg);color:var(--mut);font-weight:600}.kvt td:first-child{font-weight:600;white-space:nowrap}"+
+".kvq{border-left:4px solid var(--pri);background:rgba(255,107,61,.1);border-radius:8px;padding:10px 12px;margin:10px 0}"+
+".kvh{font-family:'Barlow Condensed','Arial Narrow',system-ui,sans-serif;font-size:21px;margin:16px 0 6px}"+
+".kvx p{margin:6px 0}.kvx details{margin:10px 0}.kvx summary{cursor:pointer;font-size:17px;list-style:none}.kvx summary:after{content:' ▾';color:var(--mut)}"+
+".kvn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:99px;background:var(--pri);color:#1a1208;font-weight:700;font-size:14px;margin-right:8px;flex:none}"+
+".kvs{display:flex;align-items:flex-start;margin:8px 0}"+
+".kvr{display:flex;align-items:center;gap:10px;width:100%;text-align:left;min-height:56px;margin:8px 0;padding:10px 12px;border-radius:14px}"+
+".kvb2{display:inline-block;font-size:13px;padding:2px 10px;border-radius:99px;border:1px solid currentColor;white-space:nowrap;flex:none}"+
+".kvtm{font-size:44px;font-weight:700;text-align:center;font-family:'Barlow Condensed',sans-serif}";
+document.head.appendChild(s)})();
+
+/* ---------- helpers de contenido ---------- */
+function P(x){return "<p>"+x+"</p>"}
+function H(x){return '<h3 class="kvh">'+x+"</h3>"}
+function Q(x){return '<div class="kvq">'+x+"</div>"}
+function L(a){return '<ul style="margin:6px 0;padding-left:20px">'+a.map(function(i){return '<li style="margin:5px 0">'+i+"</li>"}).join("")+"</ul>"}
+function S(a){return a.map(function(x,i){return '<div class="kvs"><span class="kvn">'+(i+1)+"</span><div>"+x+"</div></div>"}).join("")}
+function T(h,r){return '<div style="overflow-x:auto"><table class="kvt"><tr>'+h.map(function(x){return "<th>"+x+"</th>"}).join("")+"</tr>"+r.map(function(f){return "<tr>"+f.map(function(x){return "<td>"+x+"</td>"}).join("")+"</tr>"}).join("")+"</table></div>"}
+function D(t,body,open){return '<details class="card"'+(open?" open":"")+"><summary><b>"+t+"</b></summary>"+body+"</details>"}
+
+/* ================= 1) RUTA DE 7 DÍAS ================= */
+var DIAS=[
+{t:"Orientación general del sistema",min:"30–40 min",obj:"Entender cómo leer cada mapa. La meta de hoy no es memorizar: es aprender a mirar.",
+ b:P("Hoy no estudiás ejercicios complicados. Aprendés el sistema: elegís 5 mapas que ya reconozcas y les aplicás el Método 3M (Mirar, Marcar, Memorizar). No importa si sabés poco de ellos; alcanza con que los reconozcas.")+
+ H("Cómo trabajar hoy")+S(["<b>Elegí 5 mapas que reconozcas.</b> Buscá en el Atlas 5 ejercicios que hayas hecho en el gimnasio o visto hacer. Ej: sentadilla, press banca, jalón, flexiones, peso muerto.","<b>Aplicá el Método 3M en cada uno.</b> Mirá el mapa sin escribir. Marcá en tu cuaderno solo lo esencial. Memorizá una frase simple y decila en voz alta.","<b>Respondé 7 preguntas por ejercicio</b> (abajo)."])+
+ H("Las 7 preguntas")+L(["¿Cuál es el ejercicio?","¿Cuál es el músculo principal?","¿Cuáles son los músculos secundarios?","¿Qué articulaciones se mueven?","¿En qué plano anatómico ocurre?","¿Cuál es el error técnico posible?","¿Cómo lo explicarías en una sola frase?"])+
+ Q("<b>Mini tarea del día:</b> completá esta frase para 3 ejercicios que revisaste:<br><i>«Este ejercicio trabaja principalmente ______, con participación de ______, y el movimiento principal ocurre en el plano ______.»</i>"),
+ c:["Elegí 5 mapas que reconozco","Apliqué el Método 3M en los 5","Respondí las 7 preguntas en cada uno","Completé la frase para 3 ejercicios"]},
+{t:"Miembro inferior: de la rodilla a los glúteos",min:"35–45 min",obj:"Entender los ejercicios de piernas y glúteos y diferenciar los dominados por la rodilla de los dominados por la cadera.",
+ b:P("Casi todo lo de pierna se entiende con una pregunta: <b>¿el movimiento principal ocurre en la rodilla o en la cadera?</b>")+
+ H("Los dos grandes patrones")+T(["Patrón","Qué pasa","Ejercicios"],[["Dominante de rodilla","La rodilla flexiona y extiende con alta demanda muscular.","Sentadilla, prensa, extensión de rodilla, curl femoral, gemelos"],["Dominante de cadera","La bisagra de cadera es la protagonista del gesto.","Peso muerto rumano, hip thrust, buenos días, abducción de cadera"]])+
+ P("Las <b>estocadas</b> son un caso especial: combinan los dos patrones (rodilla y cadera activas).")+
+ H("Mapas para revisar hoy (en este orden)")+T(["Ejercicio","¿Rodilla o cadera?","Músculo principal"],[["Sentadilla","Rodilla","Cuádriceps + glúteo mayor"],["Prensa de piernas","Rodilla","Cuádriceps (más estable, menos estabilizadores)"],["Peso muerto rumano","Cadera","Isquios + glúteo mayor"],["Hip thrust","Cadera","Glúteo mayor"],["Estocadas","Ambas","Cuádriceps + glúteo (mucho equilibrio)"],["Extensión de rodilla","Rodilla (aislamiento)","Cuádriceps"],["Curl femoral","Rodilla (aislamiento)","Isquiotibiales"],["Gemelos de pie","Tobillo (aislamiento)","Gastrocnemio + sóleo"]])+
+ Q("Cuando sabés si un ejercicio domina por rodilla o por cadera, podés explicar qué músculos trabajan y por qué. Eso es pensar como kinesiólogo."),
+ c:["Revisé los 8 mapas de miembro inferior","Aplicé el Método 3M en cada uno","Entiendo la diferencia rodilla vs. cadera","Completé la tabla sin mirar"]},
+{t:"Miembro superior: empujes",min:"35–45 min",obj:"Dominar los empujes horizontales y verticales y entender cómo trabajan juntos pecho, hombro y tríceps.",
+ b:P("Todos los empujes comparten la lógica: <b>extensión de una articulación contra una resistencia</b>. Lo que cambia es la dirección del movimiento y el ángulo de trabajo.")+
+ H("Los dos patrones de empuje")+T(["Tipo","Qué pasa","Ejercicios"],[["Horizontal","El movimiento va hacia adelante (plano sagital). Motor: pectoral mayor, con tríceps y deltoides anterior.","Press banca, flexiones, aperturas"],["Vertical","El movimiento va hacia arriba. El deltoides toma el protagonismo; el tríceps extiende el codo al final.","Press militar, fondos en paralelas"]])+
+ H("Mapas para revisar hoy")+T(["Ejercicio","Tipo","Articulaciones","Músculo dominante"],[["Press banca","Horizontal","Hombro + codo","Pectoral mayor"],["Flexiones","Horizontal","Hombro + codo","Pectoral mayor"],["Aperturas de pecho","Horizontal","Hombro","Pectoral mayor"],["Press militar","Vertical","Hombro + codo","Deltoides"],["Fondos","Vertical/combinado","Hombro + codo","Tríceps + pecho"],["Extensión de tríceps","Aislamiento","Codo","Tríceps"]])+
+ Q("<b>El manguito rotador siempre está presente.</b> En todo ejercicio de hombro, supraespinoso, infraespinoso, redondo menor y subescapular estabilizan la cabeza del húmero. No son protagonistas, pero son esenciales para evitar lesiones."),
+ c:["Revisé empujes horizontales y verticales","Identifico el rol del manguito rotador","Completé la tabla sin mirar"]},
+{t:"Miembro superior: tracciones",min:"35–45 min",obj:"Dominar las tracciones verticales y horizontales y saber qué músculo hace qué en jalón, remo y dominadas.",
+ b:P("La tracción es lo opuesto al empuje: <b>flexiona la articulación para acercar la carga</b>. Trabaja sobre todo la musculatura posterior del tronco y el bíceps.")+
+ H("Los dos patrones de tracción")+T(["Tipo","Qué pasa","Ejercicios"],[["Vertical","El dorsal ancho tira del húmero hacia abajo y hacia el tronco. El bíceps ayuda mucho.","Jalón al pecho, dominadas, jalón tras nuca"],["Horizontal","Romboides y trapecio medio retraen la escápula; el dorsal extiende el hombro.","Remo con barra, remo con mancuerna, remo en máquina, face pull"]])+
+ T(["Ejercicio","Tipo","Principal","Secundarios"],[["Jalón al pecho","Vertical","Dorsal ancho","Bíceps, trapecio, romboides"],["Dominadas","Vertical","Dorsal ancho","Bíceps, trapecio"],["Remo con barra","Horizontal","Dorsal + romboides","Bíceps, trapecio"],["Remo con mancuerna","Horizontal","Dorsal + romboides","Bíceps (unilateral)"]])+
+ H("Punto especial: face pull")+P("No es un ejercicio de volumen ni de hipertrofia: es de <b>salud del hombro</b>. Trabaja trapecio posterior, infraespinoso y redondo menor, y equilibra el hombro en quien hace muchos empujes.")+
+ Q("No alcanza con decir «trabaja espalda». Hay que saber si es dorsal ancho, trapecio, romboides o una combinación. Eso diferencia al principiante del profesional."),
+ c:["Revisé tracciones verticales y horizontales","Entiendo la diferencia entre jalón y remo","Sé para qué sirve el face pull"]},
+{t:"Core y columna: control del tronco",min:"35–45 min",obj:"Entender el core como un sistema de estabilización, no solo «abdominales». Diferenciar mover el tronco de resistir el movimiento del tronco.",
+ b:P("El core no es solo el recto abdominal: es un sistema con varias capas que trabajan juntas.")+
+ L(["<b>Recto abdominal:</b> flexión de tronco. El más visible, no el más importante.","<b>Oblicuos (externos e internos):</b> rotación y flexión lateral.","<b>Transverso abdominal:</b> el más profundo y el más importante; estabilizador central.","<b>Multífidos y erectores:</b> estabilizan y extienden la columna.","<b>Diafragma:</b> presión intraabdominal; parte esencial del sistema."])+
+ H("Los 3 tipos de estabilización")+T(["Tipo","El core resiste…","Ejemplos"],[["Anti-extensión","Que la espalda baja se arquee","Plancha, dead bug, bird dog"],["Anti-rotación","Que el tronco rote (oblicuos protagonistas)","Pallof press, estabilizaciones unilaterales"],["Anti-flexión lateral","Que se cierre un costado (cuadrado lumbar y oblicuos)","Plancha lateral, carries unilaterales"]])+
+ T(["Ejercicio","Tipo","¿Mueve o estabiliza?","Músculos"],[["Plancha","Anti-extensión","Estabiliza","Abdomen profundo, glúteos"],["Dead bug","Anti-extensión","Estabiliza","Abdomen, iliopsoas controlado"],["Crunch","Flexión","Mueve","Recto abdominal"],["Pallof press","Anti-rotación","Estabiliza","Oblicuos, abdomen"],["Extensión lumbar","Extensión","Mueve","Erectores espinales"]])+
+ Q("Un core fuerte no es tener abdominales marcados: es poder resistir fuerzas sin que tu espalda se hunda, se arquee o rote."),
+ c:["Revisé ejercicios de core y columna","Diferencio movimiento vs. estabilización","Sé clasificar anti-extensión / anti-rotación / anti-flexión lateral"]},
+{t:"Comparación entre ejercicios",min:"30–40 min",obj:"Dejar de ver ejercicios como temas sueltos y verlos como variaciones de un mismo patrón. Hoy no estudiás ejercicios nuevos: comparás los que ya revisaste.",
+ b:H("Sentadilla vs. prensa de piernas")+T(["Aspecto","Sentadilla","Prensa"],[["Tipo","Libre, requiere control total","Guiada, más estable"],["Quién estabiliza","El cuerpo","La máquina"],["Músculo principal","Cuádriceps + glúteos","Cuádriceps principalmente"],["Dificultad técnica","Alta","Baja"],["Estabilizadores","Core, espalda, tobillos","Menor participación"],["Cuándo usarla","Fuerza total, atletismo","Aislamiento, seguridad"]])+
+ P("<b>¿Son ejercicios distintos?</b> No: son variaciones del mismo patrón. Ambos flexionan y extienden cadera y rodilla; cambia el grado de libertad y estabilidad.")+
+ H("Press banca vs. flexiones")+T(["Aspecto","Press banca","Flexiones"],[["Patrón","Empuje con peso externo","Empuje con peso propio"],["Principal","Pectoral mayor","Pectoral mayor"],["Estabilidad","Más estable (banco)","Menos estable"],["Trabajo de core","Mínimo","Máximo (anti-extensión)"]])+
+ H("Jalón al pecho vs. dominadas")+T(["Aspecto","Jalón","Dominadas"],[["Dificultad","Fácil de progresar","Difícil (solo peso propio)"],["Estabilidad","Más estable","Menos estable"],["Principal","Dorsal ancho","Dorsal ancho"],["Secundarios","Bíceps, trapecio","Bíceps, trapecio + estabilizadores"]])+
+ Q("<b>Tu tarea:</b> elegí 2 pares de ejercicios similares del Atlas que no estén arriba y completá una tabla de comparación como estas."),
+ c:["Entendí sentadilla vs. prensa","Entendí press banca vs. flexiones","Entendí jalón vs. dominadas","Armé mis 2 pares de comparación"]},
+{t:"Repaso activo: prueba final",min:"45–60 min",obj:"Comprobar si realmente entendiste. No es una prueba para fallar: es una herramienta para saber dónde necesitás más práctica.",
+ b:P("Si solo leés mapas, sentís que entendiste. Si cerrás todo y tenés que explicar de memoria, se nota. <b>Elegí 15 ejercicios del Atlas</b> y para cada uno completá esto SIN mirar el mapa. Después abrí el Atlas y revisá.")+
+ S(["<b>Nombre del ejercicio</b> (¿tiene nombre alternativo?)","<b>Patrón de movimiento:</b> empuje, tracción, sentadilla, bisagra, rotación o estabilización","<b>Articulaciones principales</b> que se mueven","<b>Músculo principal</b> y secundarios / estabilizadores","<b>Plano anatómico:</b> sagital, frontal, transversal o combinación","<b>Error técnico común</b> y qué compensación aparece","<b>Tu frase simple:</b> el ejercicio en una sola oración, sin leer apuntes"])+
+ H("Revisión honesta")+L(["¿Cuántos dominé realmente? ____ / 15","¿En qué área me cuesta más? Tren inferior / empujes / tracciones / core","¿Cuál es mi mayor debilidad? Nombrar músculos, identificar articulaciones, reconocer planos o detectar errores","¿Qué voy a repasar en los próximos días?"])+
+ Q("Si podés explicar un ejercicio en palabras simples y sin mirar apuntes, lo entendiste. Si necesitás consultar cada vez, todavía necesitás práctica. Y está bien: así se aprende."),
+ c:["Completé el repaso de 15 ejercicios","Revisé mis respuestas contra el Atlas","Identifiqué mis áreas de debilidad","Completé los 7 días sin saltear ninguno"]}
+];
+
+function kvIntroRuta(){
+ return D("¿Por qué esta ruta?",P("Abrir los 100 mapas de golpe abruma, y estudiar ejercicios al azar no deja ver patrones. <b>Los 100 mapas no son 100 temas: son 5 o 6 patrones que se repiten.</b> Si entendés los patrones, todo se ordena.")+P("Dedicás entre 25 y 40 minutos por día y vas de lo general a lo específico."))+
+ D("Los 6 patrones fundamentales",T(["Patrón","Qué es","Ejemplos"],[["Sentadilla","Flexión y extensión de cadera, rodilla y tobillo","Sentadilla, prensa, estocadas, gemelos"],["Bisagra","Movimiento desde la cadera","Peso muerto, peso muerto rumano, buenos días"],["Empuje","Extensión de una articulación","Press banca, press militar, fondos, flexiones"],["Tracción","Flexión y aducción","Jalones, remos, dominadas"],["Rotación","Movimiento transversal","Rotaciones, pallof press, wood chops"],["Estabilización","Resistencia sin movimiento","Plancha, dead bug, bird dog"]]))+
+ D("El Método 3M: Mirar, Marcar, Memorizar",S(["<b>Mirar:</b> abrí el mapa y no intentes memorizar. Preguntate: ¿qué ejercicio es? ¿qué músculos veo? ¿qué articulaciones se mueven? ¿hacia dónde va el movimiento?","<b>Marcar:</b> escribí solo lo esencial: ejercicio, músculo principal, secundarios, articulaciones, movimiento y plano.","<b>Memorizar:</b> no memorices lo que escribiste; memorizá <u>una frase</u> que resuma el mapa y decila en voz alta 2 o 3 veces."])+
+  P("<b>Ejemplo con sentadilla</b> (5–7 minutos por mapa):")+T(["Campo","Respuesta"],[["Ejercicio","Sentadilla"],["Músculo principal","Cuádriceps y glúteo mayor"],["Secundarios","Isquios, aductores, erectores"],["Articulaciones","Cadera, rodilla, tobillo"],["Movimiento","Flexión y extensión"],["Plano","Sagital"]])+
+  Q("<b>Frase para memorizar:</b> «Es un ejercicio de miembro inferior donde cadera, rodilla y tobillo se flexionan y extienden, trabajando principalmente cuádriceps y glúteos. Plano sagital.»"))
+}
+
+function kvDia(n){
+ var d=DIAS[n-1],ck=KVD[n]||[],h=kvTop("ruta","Día "+n+" · "+d.t)+'<div class="kvx">';
+ h+='<div class="card"><span class="kvb2 ok">'+d.min+"</span><p><b>Objetivo de hoy:</b> "+d.obj+"</p></div>"+d.b;
+ h+='<div class="card"><b>✅ Checklist del día</b>'+d.c.map(function(x,i){return '<label class="item" style="font-size:16px;color:var(--tx)"><input type="checkbox" '+(ck[i]?"checked":"")+" onchange=\"kvTick("+n+","+i+",this.checked)\"><span>"+x+"</span></label>"}).join("")+"</div>";
+ h+='<div class="row" style="margin-top:12px">'+(n>1?'<button onclick="KV.d='+(n-1)+';kvDraw()">← Día '+(n-1)+"</button>":"<span></span>")+(n<7?'<button class="p" onclick="KV.d='+(n+1)+';kvDraw()">Día '+(n+1)+" →</button>":'<button class="p" onclick="KV.p=\'ruta\';kvDraw()">Terminar ✓</button>')+"</div></div>";
+ return h}
+window.kvTick=function(n,i,v){var a=KVD[n]||[];a[i]=!!v;KVD[n]=a;kvSave("kv_dias",KVD)};
+function kvDiaOk(n){var a=KVD[n]||[];return DIAS[n-1].c.every(function(_,i){return a[i]})}
+
+function kvRuta(){
+ var hechos=DIAS.filter(function(_,i){return kvDiaOk(i+1)}).length;
+ var h=kvTop("home","Ruta Kinesio-Visual de 7 días")+'<div class="kvx"><div class="card"><b>Tu avance: '+hechos+" de 7 días completos</b><div style=\"height:8px;background:var(--bg);border-radius:9px;margin-top:8px\"><div style=\"height:8px;width:"+Math.round(hechos/7*100)+"%;background:var(--ok);border-radius:9px\"></div></div></div>"+kvIntroRuta()+H("Los 7 días");
+ DIAS.forEach(function(d,i){var ok=kvDiaOk(i+1);h+='<button class="kvr" onclick="KV.d='+(i+1)+";KV.p='dia';kvDraw()\"><span class=\"kvn\">"+(i+1)+'</span><span style="flex:1"><b>'+d.t+'</b><br><span class="mut">'+d.min+'</span></span><span class="'+(ok?"ok":"mut")+'">'+(ok?"✓ Listo":"›")+"</span></button>"});
+ return h+"</div>"}
+
+/* ================= 2) CHECKLIST DE 60 SEGUNDOS ================= */
+var EJ60=[
+["Sentadilla",[["Patrón","Sentadilla"],["Articulaciones","Cadera, rodilla, tobillo"],["Movimiento","Flexión y extensión de cadera, rodilla y tobillo"],["Plano","Sagital"],["Músculo principal","Cuádriceps y glúteo mayor"],["Secundarios","Isquiotibiales, aductores"],["Estabilizadores","Core, erectores espinales, glúteo medio"],["Error frecuente","Rodillas colapsando hacia adentro (valgo dinámico)"],["Explicación simple","«La sentadilla flexiona caderas, rodillas y tobillos para trabajar principalmente piernas y glúteos, con soporte del core.»"]],"¿Por qué el valgo? Las rodillas se van hacia adentro cuando el glúteo medio está débil o el tobillo tiene poca dorsiflexión. Ambas cosas se pueden trabajar."],
+["Press banca",[["Patrón","Empuje horizontal"],["Articulaciones","Hombro, codo, escápula"],["Movimiento","Flexión horizontal de hombro y extensión de codo"],["Plano","Sagital (principalmente)"],["Músculo principal","Pectoral mayor"],["Secundarios","Tríceps, deltoides anterior"],["Estabilizadores","Manguito rotador, escápulas estabilizadas"],["Error frecuente","Hombros adelantados o rebote en el pecho"],["Explicación simple","«El press banca es un empuje horizontal donde pecho, tríceps y hombro anterior trabajan para extender los brazos contra resistencia.»"]],"Si el hombro se adelanta, el manguito rotador queda comprometido y el pectoral deja de ser el protagonista. La escápula debe estar retraída y descendida todo el movimiento."],
+["Remo con barra",[["Patrón","Tracción horizontal"],["Articulaciones","Hombro, codo, escápula"],["Movimiento","Extensión de hombro y flexión de codo"],["Plano","Sagital"],["Músculo principal","Dorsal ancho y romboides"],["Secundarios","Bíceps, trapecio medio"],["Estabilizadores","Core, columna, manguito rotador"],["Error frecuente","Rotar el tronco o no retraer completamente la escápula"],["Explicación simple","«El remo es una tracción horizontal donde la espalda inicia el movimiento trayendo el codo hacia atrás, con ayuda de los bíceps.»"]],"¿Quién inicia? El error típico es que el bíceps flexione el codo primero. Secuencia correcta: escápula retraída → codo hacia atrás. La espalda lidera, el brazo sigue."],
+["Hip thrust",[["Patrón","Bisagra / extensión de cadera"],["Articulaciones","Cadera (principalmente)"],["Movimiento","Extensión de cadera"],["Plano","Sagital"],["Músculo principal","Glúteo mayor"],["Secundarios","Isquiotibiales, aductores"],["Estabilizadores","Core, espalda baja"],["Error frecuente","Hiperextender la zona lumbar en lugar de extender solo la cadera"],["Explicación simple","«El hip thrust extiende la cadera usando principalmente glúteos, con énfasis en mantener la columna neutra.»"]],"Si se hiperextiende la lumbar, la espalda baja asume la carga del glúteo. Cue: «Apuntá el mentón al pecho al subir y fijate que el abdomen esté contraído.»"],
+["Plancha frontal",[["Patrón","Estabilización / anti-extensión"],["Articulaciones","Columna y hombro (estabilización)"],["Movimiento","No hay movimiento: resistencia a la extensión"],["Plano","N/A (es estabilización)"],["Músculo principal","Core (recto abdominal, transverso, oblicuos)"],["Secundarios","Glúteos, serratos, deltoides"],["Estabilizadores","Todo el core, erectores espinales, hombro"],["Error frecuente","Dejar caer la pelvis (pérdida de estabilidad lumbar)"],["Explicación simple","«La plancha es un ejercicio de estabilización donde el core resiste que la espalda se arquee, manteniendo alineación perfecta.»"]],"En estabilización el plano es N/A porque no hay movimiento que describir. Eso no significa que no haya trabajo muscular: el trabajo isométrico es enorme."]
+];
+
+function kvEj60(e){return D(e[0],T(["Paso","Respuesta"],e[1])+Q(e[2]))}
+
+var kvTI=null;
+window.kvTimer=function(){
+ if(kvTI)clearInterval(kvTI);var fin=Date.now()+60000;
+ kvTI=setInterval(function(){var el=document.getElementById("kvt");if(!el){clearInterval(kvTI);kvTI=null;return}
+  var s=Math.max(0,Math.ceil((fin-Date.now())/1000));el.textContent=s>0?s+" s":"¡Tiempo!";
+  if(s<=0){clearInterval(kvTI);kvTI=null;try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}}},250);
+ var el=document.getElementById("kvt");if(el)el.textContent="60 s"};
+
+function kvC60(){
+ var h=kvTop("home","Checklist de análisis en 60 segundos")+'<div class="kvx">';
+ h+='<div class="card"><b>Practicá con tiempo</b><p class="mut">Elegí un ejercicio, apretá «Empezar» y recorré los 10 pasos de memoria antes de que termine el minuto.</p><div id="kvt" class="kvtm">60 s</div><button class="p w" onclick="kvTimer()">▶ Empezar cronómetro de 60 s</button></div>';
+ h+=D("¿Para qué sirve?",P("Cuando te piden «explicame qué pasó en ese movimiento» y no tenés orden mental, mezclás músculos con articulaciones, te olvidás cosas y sonás inseguro aunque sepas. <b>No es falta de conocimiento: es falta de estructura.</b>")+T(["Sin estructura","Con estructura"],[["Empezás por cualquier lado","Seguís un orden claro"],["Mezclás músculos con articulaciones","No te salteás nada importante"],["Te olvidás puntos clave","Respondés con confianza"],["Sonás inseguro aunque sepas","Sonás como un profesional"]])+P("Son <b>10 pasos claros</b>, se hacen en <b>60 segundos</b> y sirven para <b>cualquier ejercicio</b>."),true);
+ h+=D("A-M-P-E: tu brújula rápida",P("Antes de los 10 pasos, esta es la versión corta para no perderte nunca:")+S(["<b>A — Articulación:</b> ¿qué articulaciones se mueven? Solo identificalas, sin nombrar músculos todavía.","<b>M — Músculo:</b> ¿qué músculos producen esos movimientos? Principal primero, después secundarios y estabilizadores.","<b>P — Plano:</b> ¿en qué plano ocurre? Sagital, frontal o transversal.","<b>E — Error:</b> ¿qué error técnico tengo que observar? ¿Dónde compensa la gente?"]));
+ h+=D("Los 10 pasos",T(["#","Paso","Qué hacés"],[["1","Nombre del ejercicio","Identificá exactamente qué estás analizando (en español o inglés, da igual)."],["2","Patrón de movimiento","Empuje, tracción, sentadilla, bisagra, rotación o estabilización."],["3","Articulaciones principales","Las que MÁS se mueven, en orden de importancia."],["4","Movimiento articular","Qué hacen: flexión/extensión, abducción/aducción, rotación, retracción…"],["5","Plano predominante","Sagital, frontal o transversal. Si hay dos, elegí el dominante."],["6","Músculo principal","Solo uno: el protagonista. Si dudás entre dos, el más comprometido."],["7","Músculos secundarios","Máximo 2–3 que participan activamente."],["8","Estabilizadores","Los que mantienen la seguridad sin producir movimiento."],["9","Error técnico más probable","El más frecuente. Uno solo."],["10","Explicación simple","Una frase que cualquier persona entienda."]])+
+  H("¿Cuánto tarda cada bloque?")+T(["Bloque","Tiempo"],[["Paso 1 · nombre","5 s"],["Pasos 2 a 5 · patrón, articulaciones, movimiento, plano","10 s"],["Pasos 6 a 9 · músculos y error","25 s"],["Paso 10 · explicación simple","15 s"]])+
+  H("Patrones de movimiento")+T(["Patrón","Ejemplos"],[["Empuje","Press banca, flexiones, press militar, fondos"],["Tracción","Jalón, remo, dominadas, face pull"],["Sentadilla","Sentadilla, prensa, zancada, estocada"],["Bisagra","Peso muerto, peso muerto rumano, buenos días"],["Rotación","Rotación de tronco, pallof press, wood chop"],["Estabilización","Plancha, dead bug, bird dog"]])+
+  H("Planos")+T(["Plano","Dirección","Movimientos","Ejemplos"],[["Sagital","Adelante-atrás","Flexión y extensión","Sentadilla, press banca"],["Frontal","Lado a lado","Abducción y aducción","Elevación lateral, jalón al pecho"],["Transversal","Rotaciones","Giros y torsión","Rotación de tronco, pallof press"]])+
+  Q("Orden de los músculos: <b>primero el protagonista, después los que ayudan, al final los que estabilizan.</b> Así das una explicación completa sin nombrar veinte."),true);
+ h+=H("Ejemplos resueltos (calibrá tu análisis)")+EJ60.map(kvEj60).join("");
+ h+=H("Errores frecuentes por zona")+
+  D("Tren inferior",T(["Ejercicio","Errores"],[["Sentadilla","Rodillas hacia adentro (valgo) · talones que se despegan · poca profundidad · espalda que se redondea al bajar"],["Peso muerto","Espalda redondeada · rodillas flexionadas de más (parece sentadilla) · barra lejos del cuerpo · cadera que sube antes que los hombros"],["Hip thrust","Hiperextensión lumbar al final · pelvis que no sube del todo · core relajado"]]))+
+  D("Tren superior",T(["Ejercicio","Errores"],[["Press banca","Hombros adelantados · rebote en el pecho · codos muy abiertos o cerrados · no controlar la bajada"],["Press militar","Arqueo excesivo de la espalda baja · codos muy adelante · poca estabilidad escapular"],["Flexiones","Cadera que se hunde · no bajar lo suficiente · codos muy separados"],["Jalón al pecho","Tirar solo con brazos · tirar detrás del cuello (riesgo cervical) · no bajar el codo"],["Remo","Rotar el tronco · no retraer la escápula · codos disparados"],["Dominadas","Cuello hacia adelante · recorrido parcial · balanceo sin control"]]))+
+  D("Core",T(["Ejercicio","Errores y cue"],[["Plancha","Pelvis que se hunde (el más frecuente) · hombros hacia las orejas · cabeza caída. Cue: «Línea recta de cabeza a talones. Si la cadera cae, terminó la serie.»"],["Crunch","Tirar del cuello con las manos · rango muy corto · flexores de cadera en lugar de abdominales. Cue: «Los codos no tiran de la cabeza: el abdomen enrolla el tronco.»"],["Dead bug","Espalda baja que se despega del suelo · piernas que no bajan · movimiento asimétrico. Cue: «La zona lumbar no se separa del suelo en ningún momento.»"]]));
+ h+=D("Cómo observar: 4 dimensiones",T(["Dimensión","Preguntas"],[["Alineación","¿Columna neutra? ¿Rodillas sobre tobillos? ¿Hombros relajados? ¿Cabeza neutra?"],["Estabilidad","¿Balanceo innecesario? ¿Pelvis estable? ¿Compensa con otra articulación?"],["Rango de movimiento","¿Apropiado para su nivel? ¿Muy profundo o superficial? ¿Igual de ambos lados?"],["Control y respiración","¿Controla la fase excéntrica? ¿Hay explosión descontrolada? ¿Respira o aguanta el aire?"]]));
+ h+=D("Cómo corregir lo que viste",S(["<b>Identificá el error:</b> ¿qué observás?","<b>Conectalo con el concepto:</b> ¿qué músculo o patrón falla?","<b>Creá la corrección:</b> una instrucción simple y ejecutable.","<b>Validá:</b> ¿funcionó?"])+
+  T(["","Ejemplo: rodillas hacia adentro en sentadilla"],[["Concepto","Falta de estabilización del glúteo medio"],["Técnico ❌","«Activá el glúteo medio para mantener la alineación en el plano frontal.»"],["Simple ✅","«Empujá las rodillas hacia afuera. Mantené el espacio entre rodillas toda la bajada.»"]])+
+  H("3 mini casos")+L(["<b>Sentadilla con rodillas adentro y espalda redondeada:</b> «Empujá las rodillas hacia afuera. Pecho arriba. Apretá el core antes de bajar.» Si no puede: reducí el rango, usá una silla de apoyo o trabajá glúteo medio aislado primero.","<b>Jalón con mucho brazo y hombros arriba:</b> «Antes de bajar el codo, retraé la escápula. Iniciá desde la espalda, no desde los brazos.»","<b>Plancha con pelvis hundida:</b> «Apretá el abdomen como si te fueran a pegar. Línea recta de cabeza a talones.»"]));
+ h+=D("Dónde usar la checklist",T(["Situación","Cómo"],[["Estudiando en casa","Abrí un mapa, completá la checklist de memoria, después comparás y corregís."],["En clase práctica","Completala mentalmente mientras tu profesor demuestra; si algo no cierra, levantá la mano."],["En el gimnasio enseñando","Observás, completás mentalmente y sabés qué corregir y por qué."],["Antes de un examen","10 ejercicios al azar, 60 segundos cada uno, y revisás."]]));
+ h+=D("Nivel avanzado: sentadilla vs. prensa",T(["Elemento","Sentadilla","Prensa"],[["Patrón","Sentadilla libre","Sentadilla guiada"],["Articulaciones","Cadera, rodilla, tobillo","Cadera, rodilla, tobillo"],["Principal","Cuádriceps + glúteo mayor","Cuádriceps (más énfasis)"],["Estabilizadores","Core + todo el cuerpo","Menos requerimiento global"],["Error frecuente","Rodillas hacia adentro","Despegar la pelvis del respaldo"],["Diferencia clave","Requiere estabilidad total","Más seguridad, menos demanda propioceptiva"]])+Q("Si tu alumno no controla la sentadilla, la prensa es un punto de partida más seguro para fortalecer el patrón antes de progresarlo. Eso es razonamiento clínico."));
+ return h+"</div>"}
+
+/* ================= 3) PRÁCTICAS: 20 FICHAS ================= */
+var CAMPOS=["Patrón de movimiento","Articulaciones principales","Tipo de movimiento","Plano predominante","Músculo principal","Músculos secundarios","Estabilizadores","Error técnico más probable","Explicación simple"];
+var SEC=[["Tren inferior",1,5],["Empujes",6,10],["Tracciones",11,15],["Core y estabilización",16,20]];
+var EJP=[
+["Sentadilla",["Sentadilla","Cadera, rodilla, tobillo","Flexión y extensión de cadera, rodilla y tobillo","Sagital","Cuádriceps y glúteo mayor (co-protagonistas)","Isquiotibiales, aductores, erectores espinales","Core profundo, glúteo medio, estabilizadores del tobillo","Rodillas hacia adentro (valgo dinámico) o talones que se despegan del suelo","«La sentadilla flexiona y extiende caderas, rodillas y tobillos, trabajando principalmente piernas y glúteos, con soporte crucial del core.»"],"Si te quedó flojo el plano o los estabilizadores, repasá el Día 2 de la Ruta."],
+["Peso muerto rumano (RDL)",["Bisagra de cadera","Cadera, columna lumbar (estabilizada), rodilla en leve flexión","Flexión y extensión de cadera; columna estabilizada (anti-flexión)","Sagital","Isquiotibiales y glúteo mayor (cadena posterior)","Erectores espinales, dorsal ancho, aductores","Core, espalda baja, manguito rotador","Redondear la espalda baja (flexión lumbar en lugar de flexión de cadera) o flexionar demasiado las rodillas","«El RDL flexiona la cadera manteniendo la espalda recta, trabajando principalmente la cadena posterior.»"],"Si lo confundiste con una sentadilla: el RDL es bisagra y la rodilla casi no se mueve. Repasá el Día 2."],
+["Hip thrust",["Extensión de cadera (bisagra invertida)","Cadera (principalmente), columna lumbar (estabilizada)","Extensión de cadera","Sagital","Glúteo mayor","Isquiotibiales, aductores","Core, espalda baja, parte superior de la espalda","Hiperextender la zona lumbar (arqueo excesivo) en lugar de extender solo desde la cadera","«El hip thrust extiende la cadera usando principalmente glúteos, manteniendo la columna neutra sin arquear.»"],"Si dijiste «trabajo de glúteos» pero no «extensión de cadera», vas bien pero te falta precisión técnica."],
+["Estocadas (lunges)",["Sentadilla unilateral (zancada)","Cadera, rodilla, tobillo (bilateral)","Flexión y extensión de cadera, rodilla y tobillo (un lado a la vez)","Sagital","Cuádriceps y glúteo mayor (pierna de adelante)","Isquiotibiales, glúteo menor, erectores espinales","Glúteo medio (estabilidad lateral), core, tobillo","Rodilla adelantada que cae hacia adentro, tronco inclinado, paso demasiado corto","«La estocada es una sentadilla unilateral que flexiona y extiende una pierna a la vez, con énfasis en estabilidad lateral.»"],"Lo clave es que es unilateral: cambia los estabilizadores y exige mucho al glúteo medio."],
+["Extensión de rodilla en máquina",["Aislamiento de rodilla","Rodilla (solo rodilla)","Extensión de rodilla","Sagital","Cuádriceps (énfasis en vasto medial y lateral)","Prácticamente ninguno (el sartorio ayuda levemente)","Cadera (estabilizada por la máquina), tendones y ligamentos de rodilla","No extender completamente la rodilla o extender con demasiada velocidad (riesgo para el ligamento)","«La extensión de rodilla aisla el cuádriceps en extensión pura, con mínima participación de otros músculos.»"],"Primer ejercicio de aislamiento: una sola articulación y un músculo dominante, a diferencia de los compuestos."],
+["Press banca",["Empuje horizontal","Hombro, codo, escápula","Flexión horizontal de hombro, extensión de codo, retracción escapular","Sagital (principalmente)","Pectoral mayor","Tríceps, deltoides anterior","Manguito rotador, serratos, espalda baja (contra el banco)","Hombros adelantados (falta de retracción escapular), rebote en el pecho, no controlar la bajada","«El press banca es un empuje horizontal donde pecho, tríceps y hombro anterior trabajan juntos para extender los brazos contra resistencia.»"],"Error típico: decir que el agonista es el tríceps. El pectoral mayor inicia y produce el movimiento principal."],
+["Flexiones",["Empuje horizontal","Hombro, codo, escápula","Flexión horizontal de hombro, extensión de codo","Sagital","Pectoral mayor","Tríceps, deltoides anterior","Core (anti-extensión crítica), serratos, glúteos, estabilizadores escapulares","Cadera que se hunde, no bajar lo suficiente, codos muy separados del cuerpo","«Las flexiones son un empuje horizontal igual que el press banca, pero requieren más estabilización de core porque no hay banco de apoyo.»"],"Mismos músculos que el press banca; lo que cambia es la estabilización: sin banco, el core trabaja en anti-extensión."],
+["Press militar (de pie)",["Empuje vertical","Hombro, codo, escápula","Flexión/abducción de hombro, extensión de codo, elevación escapular","Frontal/sagital (combinado)","Deltoides (principalmente anterior y medio)","Tríceps, pectoral superior, trapecio superior","Core (anti-extensión), espalda baja, serratos","Arquear excesivamente la espalda baja, falta de estabilidad escapular","«El press militar empuja peso verticalmente usando principalmente deltoides y tríceps, con exigencia crítica de estabilidad de core.»"],"Si dijiste que es igual al press banca, repasá empuje horizontal vs. vertical (Día 3)."],
+["Fondos en paralelas",["Empuje vertical/combinado (híbrido)","Hombro, codo","Extensión de codo (principalmente), extensión de hombro","Sagital","Tríceps (cuerpo vertical) o pecho (inclinado hacia adelante)","Depende del ángulo: pecho si inclinado, tríceps si vertical","Core, serratos, estabilizadores de hombro","Poca amplitud, demasiado balanceo, falta de control en la bajada","«Los fondos son un empuje donde tríceps o pecho dominan según el ángulo del cuerpo, con importante participación del core.»"],"Si dijiste solo tríceps o solo pecho, te falta la variable del ángulo. El ángulo cambia el ejercicio."],
+["Elevación lateral de hombro",["Aislamiento de hombro","Hombro (principalmente)","Abducción de hombro","Frontal","Deltoides medio","Deltoides anterior (poca participación), trapecio superior","Rotadores externos, manguito rotador","Usar impulso (balanceo), elevar más de 90 grados, no controlar la bajada","«La elevación lateral aísla el deltoides medio mediante abducción de hombro en el plano frontal, con énfasis en el control.»"],"Si dijiste plano sagital, revisalo: abrir los brazos a los costados es plano frontal."],
+["Jalón al pecho",["Tracción vertical","Hombro, codo, escápula","Aducción/extensión de hombro, flexión de codo, retracción escapular","Frontal/sagital (principalmente frontal)","Dorsal ancho","Bíceps, trapecio medio/inferior, romboides","Core, serratos, espalda media","Tirar solo con los brazos sin iniciativa escapular, no bajar lo suficiente, redondear la espalda","«El jalón al pecho es una tracción vertical donde la espalda inicia el movimiento bajando el codo, con ayuda de bíceps y trapecio.»"],"Error muy común: decir que el bíceps es el agonista. El agonista es el dorsal ancho; el bíceps es secundario."],
+["Dominadas",["Tracción vertical","Hombro, codo, escápula","Aducción/extensión de hombro, flexión de codo","Frontal/sagital","Dorsal ancho (agarre prono) o bíceps (agarre supino)","Bíceps/dorsal (según el agarre), trapecio","Core (anti-extensión), rotadores escapulares, manguito rotador","Rango parcial, cabeza hacia adelante, movimiento oscilante","«Las dominadas son una tracción vertical donde dorsal o bíceps dominan según el agarre, con máxima estabilización del core.»"],"Agarre prono (palmas hacia afuera): más espalda y más difícil. Agarre supino (palmas hacia vos): más bíceps y más accesible."],
+["Remo con barra",["Tracción horizontal","Hombro, codo, escápula","Extensión de hombro, flexión de codo, retracción escapular","Sagital","Dorsal ancho (lateral) y romboides (medio)","Bíceps, trapecio medio/inferior, redondo mayor","Core, espalda baja, serratos","Rotar demasiado el tronco, no retraer completamente la escápula, brazos que dominan sobre la espalda","«El remo horizontal es una tracción donde la espalda inicia llevando el codo hacia atrás, con ayuda de bíceps y trapecio.»"],"Jalón = tracción vertical (el codo baja, plano frontal). Remo = tracción horizontal (el codo va atrás, plano sagital)."],
+["Remo con mancuerna",["Tracción horizontal (unilateral)","Hombro, codo, escápula (unilateral)","Extensión de hombro, flexión de codo, retracción escapular","Sagital","Dorsal ancho (unilateral)","Bíceps, romboides, trapecio medio","Oblicuos (anti-rotación crítica), glúteo medio, serratos","Rotar el tronco, perder estabilidad de core, no retraer completamente la escápula","«El remo con mancuerna es una tracción unilateral donde la espalda trabaja de un lado a la vez, con exigencia crítica de anti-rotación del core.»"],"Mismo patrón que el remo con barra, pero al ser unilateral exige MÁS estabilidad de core (anti-rotación)."],
+["Face pull",["Tracción con énfasis en rotadores externos del hombro","Hombro (principalmente), codo","Rotación externa de hombro, abducción leve","Transversal/frontal","Deltoides posterior, infraespinoso, trapecio medio/posterior","Trapecio superior, redondo menor, serratos","Core, espalda media","Usar demasiado peso (compensar con tríceps), no rotar lo suficiente","«El face pull es un ejercicio de salud de hombro que enfatiza los rotadores externos, previniendo desequilibrios por exceso de empujes.»"],"No es un ejercicio de fuerza clásico: es de balance y salud articular. Si solo dijiste «espalda», falta el rol de los rotadores externos."],
+["Plancha frontal",["Estabilización / anti-extensión","Columna lumbar (no debe moverse), hombro (estabilizado)","NO hay movimiento: resistencia isométrica a la extensión","N/A (ejercicio isométrico)","Recto abdominal y transverso abdominal (core profundo)","Glúteos, serratos, deltoides anterior","TODO el core, erectores espinales, manguito rotador, músculos del cuello","Pelvis que se hunde, hombros elevados, cabeza que cae, columna que se arquea","«La plancha es un ejercicio isométrico donde el abdomen resiste que la espalda se arquee, manteniendo alineación perfecta.»"],"La plancha NO es de movimiento. Si escribiste «flexión» o cualquier movimiento, repasá este concepto."],
+["Dead bug",["Estabilización / anti-extensión con coordinación","Cadera, rodilla, columna (estabilizada), hombro","Movimiento coordinado de extremidades mientras la columna se estabiliza","Sagital (principalmente)","Recto abdominal y transverso abdominal (core profundo)","Psoas (controlado), deltoides, glúteos","Core completo, espalda baja, cuello","Espalda baja que se despega del suelo, piernas que no bajan lo suficiente, movimiento asimétrico","«El dead bug coordina el movimiento de las extremidades mientras el core resiste que la espalda se arquee, entrenando estabilidad dinámica.»"],"Plancha = estática. Dead bug = dinámica: las extremidades se mueven y la columna sigue estabilizada."],
+["Bird dog",["Estabilización unilateral / anti-rotación","Cadera, columna, hombro (unilateral)","Extensión unilateral de cadera + extensión de hombro mientras la columna se estabiliza","Sagital (principalmente)","Glúteo mayor (unilateral) y core (transverso, oblicuos)","Erectores espinales, deltoides posterior","Oblicuos en anti-rotación, estabilizadores de escápula","Pelvis que rota, espalda baja que se arquea, no extender completamente","«El bird dog es un ejercicio unilateral de estabilidad donde un brazo y la pierna contraria se extienden mientras el core resiste la rotación.»"],"Si solo dijiste «core», te falta especificidad: acá el tronco resiste girar mientras las extremidades se extienden."],
+["Pallof press",["Estabilización / anti-rotación","Hombro, codo, columna (resiste la rotación)","Extensión de codo (empuje) mientras la columna resiste la rotación","Transversal (resiste la rotación en este plano)","Oblicuos (anti-rotación), transverso abdominal","Tríceps (el empuje), serratos","Core completo, espalda, glúteos","Permitir que el tronco rote, no mantener la alineación de hombros","«El pallof press es un ejercicio de anti-rotación donde el core resiste fuerzas rotacionales mientras se empuja un peso hacia adelante.»"],"No produce rotación: la resiste. Esa es la diferencia conceptual clave frente a todos los anteriores."],
+["Crunch",["Flexión de columna / movimiento de core","Columna torácica (principalmente)","Flexión de la columna torácica","Sagital","Recto abdominal (sobre todo la parte superior)","Oblicuos externos (ligeramente)","Ninguno relevante (es un movimiento de aislamiento)","Tirar del cuello, movimiento parcial, usar flexores de cadera en lugar de abdominales","«El crunch es un movimiento de aislamiento donde el recto abdominal se flexiona acortando la distancia entre pecho y pelvis.»"],"Es el único de esta sección que es movimiento dinámico y no estabilización. ¿Lo diferenciaste de la plancha?"]
+];
+var EXTRAS=[["Sentadilla con salto","¿Cómo cambia el análisis al sumar explosión y potencia? ¿Qué pasa con los tiempos de contracción?"],["Remo Pendlay","¿Es distinto del remo con barra convencional? ¿Cómo cambian la posición inicial y el patrón de activación?"],["Press Arnold","Press militar con rotación externa. ¿Cómo analizás un ejercicio que cambia de plano durante el movimiento?"],["Turkish get-up","Ejercicio complejo con varias fases. ¿Cómo lo dividís en etapas para analizarlo bien?"],["Farmers carry","Agarre y estabilidad en movimiento. ¿Qué músculos dominan cuando el cuerpo camina bajo carga?"]];
+var NIV=[["18–20","Excelente. Estás listo para analizar ejercicios de forma independiente."],["14–17","Muy bien. Faltan detalles pero la base es sólida. Repasá lo que fallaste."],["10–13","Buen nivel. Necesitás repasar ciertos conceptos con la Ruta de 7 días."],["5–9","Nivel básico. Volvé a la Ruta de 7 días antes de seguir."],["0–4","Necesitás más tiempo de estudio antes de repetir este workbook."]];
+
+function kvNivel(n){return n>=18?0:n>=14?1:n>=10?2:n>=5?3:4}
+function kvPrac(){
+ var hechos=Object.keys(KVP).length,buenos=Object.keys(KVP).filter(function(k){return KVP[k]>=6}).length;
+ var h=kvTop("home","Prácticas: 20 fichas de análisis")+'<div class="kvx">';
+ h+='<div class="card"><b>Tu avance: '+hechos+" de 20 fichas · "+buenos+" con 6 o más aciertos</b><div style=\"height:8px;background:var(--bg);border-radius:9px;margin-top:8px\"><div style=\"height:8px;width:"+Math.round(hechos/20*100)+"%;background:var(--ok);border-radius:9px\"></div></div></div>";
+ h+=D("¿Cómo funciona?",P("Leer no es lo mismo que analizar. Cuando completás la ficha vos, tu cerebro decide, se equivoca y se corrige, y eso es lo que queda grabado.")+S(["Elegí un ejercicio (seguí el orden 1 → 20).","<b>Completá la ficha SIN mirar nada</b> (en papel o en tu cuaderno): usá solo tu conocimiento.","Tocá «Ver respuesta sugerida» y compará con la tuya.","Anotá cuántos de los 9 campos acertaste.","Reflexioná: ¿qué no entendí? ¿qué debo repasar?","Pasá al siguiente. No importa acertar: importa aprender."])+Q("<b>6 o más campos</b> acertados = excelente · <b>4–5</b> = buen nivel, profundizá · <b>0–3</b> = sin drama, repasá el mapa y la Ruta."),true);
+ h+=D("Los 9 campos de la ficha",L(CAMPOS.map(function(c,i){return "<b>"+(i+1)+".</b> "+c})));
+ SEC.forEach(function(s){h+=H(s[0]+" ("+s[1]+"–"+s[2]+")");for(var i=s[1];i<=s[2];i++){var sc=KVP[i];h+='<button class="kvr" style="background:var(--card);border:1px solid var(--bd)" onclick="KV.e='+i+";KV.p='ej';kvDraw()\"><span class=\"kvn\">"+i+'</span><span style="flex:1"><b>'+EJP[i-1][0]+'</b></span><span class="'+(sc==null?"mut":sc>=6?"ok":"bad")+'">'+(sc==null?"›":sc+"/9")+"</span></button>"}});
+ var tot=buenos;
+ h+=H("Autoevaluación final")+P("Contá los ejercicios donde lograste 6 o más campos correctos.")+'<div class="card"><b>Tu resultado ahora: '+tot+" de 20</b>"+(hechos==20?"<p>"+NIV[kvNivel(tot)][1]+"</p>":'<p class="mut">Completá las 20 fichas para ver tu interpretación.</p>')+"</div>"+T(["Puntaje","Qué significa"],NIV);
+ h+=D("5 ejercicios extra (desafíos abiertos)",P("Para cuando completes los 20. Usá la misma ficha de 9 campos.")+T(["Ejercicio","Qué te preguntás"],EXTRAS));
+ h+=D("Método avanzado: revisar sin ver todo",P("Cubrí la respuesta y destapala <b>campo por campo</b>: completás la ficha, destapás una sección, corregís y comparás antes de seguir. Te obliga a comprometerte con cada respuesta y muestra tus puntos ciegos reales.")+Q("El máximo aprendizaje no es cuando acertás: es cuando ves la diferencia entre lo que dijiste y lo correcto y te preguntás por qué lo pensaste así."));
+ h+=D("Los errores son oportunidades",T(["Dónde","Consecuencia"],[["Error en casa","Ninguna. Solo información sobre qué repasar."],["Error en el examen","Real, pero prevenible si practicaste."],["Error frente a un cliente","De reputación, también prevenible con práctica."]])+P("Cada error acá es un error evitado en el mundo real."));
+ return h+"</div>"}
+
+function kvEj(n){
+ var e=EJP[n-1],sc=KVP[n],rev=KV.rev[n];
+ var h=kvTop("prac","Ejercicio "+n+" · "+e[0])+'<div class="kvx">';
+ h+='<div class="card"><b>Paso 1 · Completá tu ficha SIN mirar</b><p class="mut">Analizá «'+e[0]+"» y escribí en papel estos 9 campos:</p>"+L(CAMPOS)+"</div>";
+ if(!rev)h+='<button class="p w" onclick="KV.rev['+n+']=1;kvDraw(true)">Paso 2 · Ver respuesta sugerida</button>';
+ else{
+  h+='<div class="card"><b>✅ Respuesta sugerida</b>'+T(["Campo","Respuesta"],CAMPOS.map(function(c,i){return [c,e[1][i]]}))+Q(e[2])+"</div>";
+  h+='<div class="card"><b>Paso 3 · ¿En cuántos de los 9 campos acertaste?</b><div class="chips" style="flex-wrap:wrap">'+[0,1,2,3,4,5,6,7,8,9].map(function(k){return '<button class="'+(sc===k?"p":"")+'" onclick="kvScore('+n+","+k+')">'+k+"</button>"}).join("")+"</div>"+(sc==null?"":'<p class="'+(sc>=6?"ok":sc>=4?"":"bad")+'">'+(sc>=6?"Excelente: dominás este ejercicio.":sc>=4?"Buen nivel: profundizá en estabilizadores y plano.":"Sin drama: revisá el mapa y la Ruta de 7 días.")+"</p>")+"</div>"}
+ h+='<div class="row" style="margin-top:12px">'+(n>1?'<button onclick="KV.e='+(n-1)+';kvDraw()">← '+(n-1)+"</button>":"<span></span>")+(n<20?'<button class="p" onclick="KV.e='+(n+1)+';kvDraw()">Siguiente ('+(n+1)+") →</button>":'<button class="p" onclick="KV.p=\'prac\';kvDraw()">Ver resultado</button>')+"</div></div>";
+ return h}
+window.kvScore=function(n,k){KVP[n]=k;kvSave("kv_prac",KVP);draw()};
+
+/* ================= PANTALLA PRINCIPAL ================= */
+function kvTop(back,title){return '<button onclick="KV.p=\''+back+"';"+(back=="home"?"":"")+'kvDraw()">← Volver</button><h1>'+title+"</h1>"}
+function kvHome(){
+ var hD=DIAS.filter(function(_,i){return kvDiaOk(i+1)}).length,hP=Object.keys(KVP).length;
+ return '<button onclick="kvExit()">← Volver</button><h1>Kinesio-Visual</h1><p class="mut">Herramientas de estudio para usar junto a los 100 mapas del Atlas. Tu avance se guarda en este dispositivo.</p>'+
+ '<div class="mgrid">'+
+ mcard("check","Ruta de 7 días","Un plan diario: de lo general a lo específico · "+hD+"/7","#ff9f1c","KV.p='ruta';kvDraw()")+
+ mcard("timer","Checklist de 60 segundos","10 pasos para analizar cualquier ejercicio","#17b8c9","KV.p='c60';kvDraw()")+
+ mcard("fitness","Prácticas: 20 fichas","Completás, comparás y te autoevaluás · "+hP+"/20","#7c6cf0","KV.p='prac';kvDraw()")+"</div>"+
+ '<div class="card kvx"><b>¿Por dónde empezar?</b>'+S(["Hacé la <b>Ruta de 7 días</b> (25–40 min por día).","Usá la <b>Checklist de 60 segundos</b> cada vez que mires un ejercicio.","Cerrá con las <b>20 fichas de práctica</b> para comprobar que entendiste."])+"</div>"}
+
+window.kvDraw=function(keep){draw();if(!keep)scrollTo(0,0)};
+window.kvExit=function(){if(coach())go("lista");else{TAB="mas";draw();scrollTo(0,0)}};
+function kvH(){
+ var p=KV.p;
+ return p=="ruta"?kvRuta():p=="dia"?kvDia(KV.d):p=="c60"?kvC60():p=="prac"?kvPrac():p=="ej"?kvEj(KV.e):kvHome()}
+
+/* ---------- integración con la app ---------- */
+// Coach: vista propia y tarjeta en el menú
+var _dKV=draw;draw=function(){if(V==="kv"){$("app").innerHTML=kvH()+cnav();try{subGlobal()}catch(e){}return}_dKV()};
+var _vListaKV=vLista;vLista=function(){var h=_vListaKV(),k=h.indexOf("go('biblio')");if(k<0)return h;var e=h.indexOf("</button>",k)+9;return h.slice(0,e)+mcard("check","Kinesio-Visual","Ruta de 7 días, checklist y prácticas","#7c6cf0","KV.p='home';go('kv')")+h.slice(e)};
+// Alumno: botón en «Más» y pantalla propia (mantiene la barra de abajo y el control de pago)
+var _vCliKV=vCli;vCli=function(){
+ if(!coach()&&TAB=="kv"){var h0;TAB="mas";try{h0=_vCliKV()}finally{TAB="kv"}var i=h0.indexOf("<nav>");if(i<0)return h0;return kvH()+h0.slice(i)}
+ var h=_vCliKV();
+ if(!coach()&&TAB=="mas")h=h.replace("<h1>Más</h1>",function(m){return m+'<button class="w" onclick="KV.p=\'home\';TAB=\'kv\';draw();scrollTo(0,0)">🧠 Kinesio-Visual: 7 días, checklist y prácticas</button>'});
+ return h};
+}catch(e){console.error("kinesio-visual",e)}
+
+</script>
+<script>
+/* ===== v111: mapas kinesiológicos subidos desde la app (sin carpeta en GitHub) + buscar actualización ===== */
+try{
+var APPV="v111";
+function mpMap(){try{return JSON.parse(CFG.imgs_mapas||"{}")}catch(e){return{}}}
+function mpImg(n){var M=mpMap(),p=M[n];
+ if(p)return '<img data-m="'+esc(p)+'" alt="Mapa del ejercicio" loading="lazy" style="width:100%;border-radius:12px;margin-top:8px;background:#fff" onclick="mapaVer('+n+')">';
+ return '<img src="mapas/'+mapaPad(n)+'.jpg" alt="Mapa del ejercicio" loading="lazy" style="width:100%;border-radius:12px;margin-top:8px;background:#fff" onclick="mapaVer('+n+')" onerror="this.style.display=\'none\';var f=this.parentNode.querySelector(\'.mpfb\');if(f)f.style.display=\'\'">'}
+musH=function(x){
+ var arr=null;try{arr=mapaDe(x&&x.nombre)}catch(e){}
+ var orig="";try{orig=musH0(x)}catch(e){}
+ if(!arr)return orig;
+ return '<div class="mus"><b>🗺 Mapa kinesiológico</b><p class="mut" style="margin:4px 0">Tocá el mapa para verlo en grande.</p>'+arr.map(function(n){return mpImg(n)}).join("")+'<div class="mpfb" style="display:none">'+orig+'</div></div>'};
+mapaVer=function(n){var M=mpMap(),o=document.createElement("div");o.id="mpv";
+ o.style.cssText="position:fixed;inset:0;z-index:99999;background:#000;overflow:auto;-webkit-overflow-scrolling:touch";
+ var im=M[n]?'<img data-m="'+esc(M[n])+'" alt="Mapa del ejercicio" style="width:1100px;max-width:none;display:block;margin-top:60px;background:#fff">':'<img src="mapas/'+mapaPad(n)+'.jpg" alt="Mapa del ejercicio" style="width:1100px;max-width:none;display:block;margin-top:60px">';
+ o.innerHTML='<button style="position:fixed;top:calc(10px + env(safe-area-inset-top,0px));right:10px;z-index:2;min-height:44px" onclick="document.getElementById(\'mpv\').remove()">✕ Cerrar</button>'+im+'<p class="mut" style="padding:8px 12px">Deslizá para recorrer el mapa. También podés hacer zoom con los dedos.</p>';
+ document.body.appendChild(o);try{imgs()}catch(e){}};
+function mpComp(f){return new Promise(function(ok){var i=new Image();i.onload=function(){var k=Math.min(1,2000/Math.max(i.width,i.height)),c=document.createElement("canvas");c.width=Math.round(i.width*k);c.height=Math.round(i.height*k);c.getContext("2d").drawImage(i,0,0,c.width,c.height);c.toBlob(function(b){ok(b?new File([b],"m.jpg",{type:"image/jpeg"}):f)},"image/jpeg",.88)};i.onerror=function(){ok(f)};i.src=URL.createObjectURL(f)})}
+function mpNum(name){var b=String(name).replace(/\.[^.]+$/,"").replace(/^mapa[-_ ]*/i,"");
+ var m=b.match(/^\s*(\d{1,3})(?!\d)/);if(m){var n=parseInt(m[1],10);if(n>=1&&n<=MAPAS.length)return n}
+ var k=mpKey(b.replace(/[-_]+/g," "));if(!k)return 0;
+ var h=MAPAS.filter(function(x){return mpKey(x[1])==k})[0];
+ if(!h){var a=MAPALK[k];if(a)h=MAPAS.filter(function(x){return mpKey(x[1])==a})[0]}
+ return h?h[0]:0}
+async function subirMapas(){var fs=$("mpf").files;if(!fs.length)return;var M=mpMap(),ok=0,no=[],old=[];
+ for(var i=0;i<fs.length;i++){$("mpp").textContent="Subiendo "+(i+1)+" de "+fs.length+"…";
+  var n=mpNum(fs[i].name);if(!n){no.push(fs[i].name);continue}
+  var f=await mpComp(fs[i]),p="biblioteca/"+Date.now()+"_m"+n+"_"+i+".jpg",
+  r=await sb.storage.from("archivos").upload(p,f,{contentType:f.type||"image/jpeg"});
+  if(r.error){no.push(fs[i].name+" ("+r.error.message+")");continue}
+  if(M[n])old.push(M[n]);M[n]=p;ok++}
+ if(ok){var v=JSON.stringify(M),q=await sb.from("config").upsert({clave:"imgs_mapas",valor:v});
+  if(q.error){alert("No se pudo guardar: "+q.error.message);return}
+  CFG.imgs_mapas=v;try{if(old.length)await sb.storage.from("archivos").remove(old)}catch(e){}}
+ draw();alert(ok+" mapa(s) cargado(s)."+(no.length?" No reconocí: "+no.join(", ")+". Renombralos con el número (001.jpg) o el nombre del ejercicio (sentadilla-libre.jpg).":""))}
+async function buscarAct(){try{if(window.caches){var ks=await caches.keys();await Promise.all(ks.map(function(k){return caches.delete(k)}))}
+ if(navigator.serviceWorker){var rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(function(r){return r.update()}))}}catch(e){}
+ if(/^https?:/.test(location.href))location.href=location.origin+location.pathname+"?v="+Date.now();else location.reload()}
+var _toolsH111=toolsH;
+toolsH=function(){var h=_toolsH111(),n=Object.keys(mpMap()).length;
+ return h+'<div class="card"><b>🗺 Mapas kinesiológicos</b><p class="mut">Elegí varias imágenes juntas (mantené apretada la primera y tocá las demás). El nombre de cada archivo tiene que ser el número del mapa (001.jpg, 2.jpg…) o el nombre del ejercicio (sentadilla-libre.jpg).</p><input id="mpf" type="file" accept="image/*" multiple><button class="w" onclick="subirMapas()">Subir mapas</button><p id="mpp" class="mut"></p><p class="mut">Cargados desde la app: '+n+' de '+MAPAS.length+'</p></div><div class="card"><b>🔄 Versión '+APPV+'</b><p class="mut">Si no ves los cambios nuevos, tocá acá.</p><button class="w" onclick="buscarAct()">Buscar actualización</button></div>'};
+if("serviceWorker" in navigator)navigator.serviceWorker.getRegistration().then(function(r){if(r)r.update()}).catch(function(){});
+}catch(e){console.error("addon v111",e)}
 </script>
 </body>
 </html>
