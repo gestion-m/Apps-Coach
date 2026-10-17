@@ -2403,7 +2403,7 @@ var _vCliKV=vCli;vCli=function(){
 <script>
 /* ===== v111: mapas kinesiológicos subidos desde la app (sin carpeta en GitHub) + buscar actualización ===== */
 try{
-var APPV="v111";
+var APPV="v116";
 function mpMap(){try{return JSON.parse(CFG.imgs_mapas||"{}")}catch(e){return{}}}
 function mpImg(n){var M=mpMap(),p=M[n];
  if(p)return '<img data-m="'+esc(p)+'" alt="Mapa del ejercicio" loading="lazy" style="width:100%;border-radius:12px;margin-top:8px;background:#fff" onclick="mapaVer('+n+')">';
@@ -2444,6 +2444,116 @@ toolsH=function(){var h=_toolsH111(),n=Object.keys(mpMap()).length;
  return h+'<div class="card"><b>🗺 Mapas kinesiológicos</b><p class="mut">Elegí varias imágenes juntas (mantené apretada la primera y tocá las demás). El nombre de cada archivo tiene que ser el número del mapa (001.jpg, 2.jpg…) o el nombre del ejercicio (sentadilla-libre.jpg).</p><input id="mpf" type="file" accept="image/*" multiple><button class="w" onclick="subirMapas()">Subir mapas</button><p id="mpp" class="mut"></p><p class="mut">Cargados desde la app: '+n+' de '+MAPAS.length+'</p></div><div class="card"><b>🔄 Versión '+APPV+'</b><p class="mut">Si no ves los cambios nuevos, tocá acá.</p><button class="w" onclick="buscarAct()">Buscar actualización</button></div>'};
 if("serviceWorker" in navigator)navigator.serviceWorker.getRegistration().then(function(r){if(r)r.update()}).catch(function(){});
 }catch(e){console.error("addon v111",e)}
+</script>
+<script>
+/* ===== v112: ilustraciones de ejercicios (carpeta ilus/) =====
+   - Miniatura en cada ejercicio de la rutina
+   - En la hoja del ejercicio: primero la ilustración y un botón "Ver cómo se hace" que despliega el video/GIF
+   - Para sumar una nueva: guardá ilus/nombre-del-ejercicio.jpg (minúsculas, sin tildes, con guiones) */
+try{(function(){
+var IL=[
+["plancha-rodillas",["plancha sobre rodillas","plancha en rodillas","plancha con rodillas"]],
+["plancha-lateral",["plancha lateral"]],
+["plancha",["plancha abdominal","plancha"]],
+["circulos-hombros",["circulos de hombros","circulo de hombros","rotacion de hombros"]],
+["rotacion-cadera",["rotacion de cadera","circulos de cadera"]],
+["gato-vaca",["gato vaca"]],
+["rotacion-tronco",["rotacion de tronco","rotacion de torso"]],
+["bird-dog",["bird dog","perro pajaro"]],
+["dead-bug",["dead bug","bicho muerto"]],
+["hip-thrust",["hip thrust","empuje de cadera","puente de gluteos con barra","elevacion de cadera con barra"]],
+["puente-gluteos",["puente de gluteos","puente de gluteo"]],
+["patada-gluteo-polea",["patada de gluteo en polea","patada de gluteos en polea","patada de gluteo con polea","patada de gluteo con tobillera","patada en polea","kickback en polea"]],
+["patada-gluteo",["patada de gluteo","patada de gluteos"]],
+["bicicleta-abdominal",["bicicleta abdominal","abdominales en bicicleta","abdominales bicicleta","abdominal bicicleta","bicicleta$"]],
+["abdominales",["abdominales","crunch"]],
+["sentadilla-silla",["sentadilla a la silla","sentadilla a silla","sentadilla con silla"]],
+["sentadilla-bulgara",["sentadilla bulgara","bulgara$"]],
+["sentadilla-sumo",["sentadilla sumo"]],
+["sentadilla-smith",["sentadilla en maquina smith","sentadilla smith","sentadilla en smith","sentadilla en multipower"]],
+["sentadilla-libre",["sentadilla libre","sentadilla sin peso","sentadilla con peso corporal","sentadilla$"]],
+["prensa-piernas",["prensa de piernas","prensa 45","prensa inclinada","leg press","prensa$"]],
+["extension-piernas",["extension de piernas","extension de rodilla","extension de cuadriceps","sillon de cuadriceps","leg extension"]],
+["curl-femoral",["curl femoral acostada","curl femoral acostado","curl femoral tumbada","curl femoral$","leg curl$"]],
+["elevacion-talones",["elevacion de talones","elevaciones de talones","elevacion de gemelos","gemelos de pie","gemelos$"]],
+["press-inclinado-mancuernas",["press inclinado con mancuernas","press inclinado","press de pecho inclinado","press de banca inclinado con mancuernas"]],
+["press-pecho",["press de pecho con mancuernas","press de pecho","press de banca con mancuernas"]],
+["press-banca-barra",["press de banca con barra","press de banca$","press banca$","banca plana$","bench press$","press plano$"]],
+["aperturas-mancuernas",["aperturas con mancuernas","aperturas en banco plano","aperturas planas","crucifixo plano","crucifixo con mancuernas","aperturas$"]],
+["flexiones-rodillas",["flexiones sobre rodillas","flexiones en rodillas","flexiones de brazos sobre rodillas","flexiones apoyada en rodillas","flexion sobre rodillas"]],
+["flexiones",["flexiones de brazos","flexion de brazos","flexiones$","flexion$","push up$","push ups$"]],
+["jalon-pecho",["jalon al pecho"]],
+["jalon-al-frente",["jalon al frente","jalon agarre ancho","pull down$","lat pulldown$"]],
+["remo-mancuerna",["remo con mancuerna","remo unilateral","remo a una mano"]],
+["remo-polea-baja",["remo en polea baja","remo sentado en polea","remo con polea baja","remo en polea$","remo sentado$"]],
+["remo-barra",["remo con barra","remo inclinado con barra","remo barra","remada con barra"]],
+["estiramiento-hombro-cruzado",["estiramiento de hombro cruzado","estiramiento de hombro","estiramiento de hombros","hombro cruzado"]],
+["estiramiento-gemelos",["estiramiento de gemelos","estiramiento de gemelo","estiramiento de pantorrillas"]],
+["estiramiento-gluteo",["estiramiento de gluteo","estiramiento de gluteos","estiramiento figura 4","figura 4","estiramiento del piriforme"]],
+["saltos-tijera",["saltos de tijera","salto de tijera","jumping jacks","jumping jack","polichinelas","polichinela"]],
+["elevacion-piernas",["elevacion de piernas","elevaciones de piernas","leg raise","leg raises"]],
+["mountain-climbers",["mountain climbers","mountain climber","escaladores","escalador"]],
+["press-frances",["press frances","extension de triceps acostada","rompecraneos","skull crusher","skullcrusher"]],
+["extension-triceps-sentada",["extension de triceps sentada","extension de triceps sentado","triceps tras nuca sentada","triceps tras nuca sentado"]],
+["extension-triceps-de-pie",["extension de triceps de pie","extension de triceps tras nuca","extension de triceps con mancuerna","triceps tras nuca"]],
+["patada-triceps",["patada de triceps","triceps kickback","kickback de triceps"]],
+["fondos-triceps",["fondos de triceps","fondos en banco","triceps en banco","dips en banco"]],
+["triceps-polea",["extension de triceps en polea","extension de triceps con cuerda","triceps en polea","triceps con cuerda","pushdown de triceps","jalon de triceps"]],
+["curl-biceps",["curl de biceps","curl con mancuernas","curl biceps","curl alternado","biceps con mancuernas","curl$"]],
+["elevacion-frontal",["elevacion frontal","elevaciones frontales"]],
+["elevacion-lateral",["elevacion lateral$","elevaciones laterales$","elevacion lateral con mancuernas","elevaciones laterales con mancuernas","vuelos laterales$","vuelos laterales con mancuernas"]],
+["face-pull",["face pull","face pulls","facepull","jalon a la cara","tiron a la cara"]],
+["estiramiento-triceps",["estiramiento de triceps","estiramiento triceps"]],
+["giro-ruso",["giro ruso","giros rusos","russian twist","rotacion rusa"]],
+["curl-martillo",["curl martillo","curl de martillo","curl hammer","hammer curl","martillo con mancuernas"]],
+["peso-muerto-rumano",["peso muerto rumano"]],
+["peso-muerto-convencional",["peso muerto convencional","peso muerto con barra","peso muerto$","deadlift$"]],
+["press-hombros",["press de hombros","desarrollo con mancuernas"]],
+["zancada-bulgara",["zancada bulgara","zancadas bulgaras","split squat","sentadilla split"]],
+["zancadas",["zancadas alternadas","zancadas con mancuernas","zancada con mancuernas"]],
+["zancada",["zancadas","zancada","estocada","estocadas","lunge"]],
+["cuadriceps",["estiramiento de cuadriceps","estiramiento cuadriceps"]],
+["flexores-cadera",["estiramiento de flexores de cadera","estiramiento de flexores","flexores de cadera"]],
+["isquios",["isquiotibiales sentado","estiramiento de isquios","estiramiento de isquiotibiales"]],
+["pecho-puerta",["pecho en la puerta"]],
+["nino",["postura del nino","pose del nino"]],
+["respiracion",["respiracion 4 6"]]
+],ILF={};
+function ilN(n){return norm(n||"")}
+function ilAlias(n){var q=ilN(n);for(var i=0;i<IL.length;i++){var a=IL[i][1];for(var j=0;j<a.length;j++){var t=a[j],ex=t.slice(-1)==="$";if(ex)t=t.slice(0,-1);if(q===t||(!ex&&q.indexOf(t+" ")===0))return IL[i][0]}}return null}
+function ilUrl(s){return "ilus/"+s+".jpg"}
+function ilFind(nombre,cb){var s=ilAlias(nombre);if(s){cb(ilUrl(s));return}
+ s=ilN(nombre).replace(/ /g,"-");if(!s||ILF[s]===0){cb(null);return}if(ILF[s]===1){cb(ilUrl(s));return}
+ var im=new Image();im.onload=function(){ILF[s]=1;cb(ilUrl(s))};im.onerror=function(){ILF[s]=0;cb(null)};im.src=ilUrl(s)}
+function ilItem(did,i){if(typeof CUR==="undefined"||!CUR||!CUR.p)return null;var d=CUR.p.find(function(z){return String(z.id)===String(did)});if(!d)return null;var x=d.items[+i];return typeof x==="object"&&x?x.nombre:x}
+var st=document.createElement("style");
+st.textContent=".ilth{width:48px;height:48px;object-fit:contain;background:#fff;border-radius:10px;vertical-align:middle;margin-right:10px}.ilcard{padding:8px;background:#fff}.ilbig{width:100%;max-height:46vh;object-fit:contain;display:block;border-radius:10px}";
+document.head.appendChild(st);
+function ilDom(){document.querySelectorAll('span[onclick^="abrirEj("]').forEach(function(sp){
+ if(sp.__il)return;sp.__il=1;var m=/abrirEj\('([^']+)',(\d+)\)/.exec(sp.getAttribute("onclick")||"");if(!m)return;
+ var nm=ilItem(m[1],m[2]);if(!nm)return;
+ ilFind(nm,function(u){if(!u||sp.querySelector(".ilth"))return;var im=document.createElement("img");im.src=u;im.alt="";im.className="ilth";im.loading="lazy";sp.insertBefore(im,sp.firstChild)})})}
+function ilSheet(did,i){var nm=ilItem(did,i);if(!nm)return;
+ ilFind(nm,function(u){var el=document.getElementById("exm");if(!u||!el||el.__il)return;el.__il=1;
+  var ref=el.querySelector("p.tt")||el.firstElementChild;if(!ref)return;
+  var card=document.createElement("div");card.className="card ilcard";card.innerHTML='<img class="ilbig" src="'+u+'" alt="Ilustración del ejercicio">';
+  ref.insertAdjacentElement("afterend",card);
+  var media=[];
+  el.querySelectorAll(".gifx").forEach(function(n){var c=n.closest(".card")||n;if(media.indexOf(c)<0)media.push(c)});
+  el.querySelectorAll("iframe").forEach(function(n){media.push(n)});
+  el.querySelectorAll('a[target="_blank"]').forEach(function(a){if(/Ver video/.test(a.textContent))media.push(a)});
+  if(!media.length)return;
+  var box=document.createElement("div");box.style.display="none";
+  media.forEach(function(n){if(n.tagName==="IFRAME"){n.setAttribute("data-src",n.getAttribute("src")||"");n.removeAttribute("src")}box.appendChild(n)});
+  var b=document.createElement("button");b.type="button";b.className="p w";b.textContent="▶ Ver cómo se hace";
+  b.onclick=function(){var abrir=box.style.display==="none";box.style.display=abrir?"":"none";
+   if(abrir)box.querySelectorAll("iframe[data-src]").forEach(function(f){if(!f.getAttribute("src"))f.setAttribute("src",f.getAttribute("data-src"))});
+   b.textContent=abrir?"▲ Ocultar video":"▶ Ver cómo se hace"};
+  card.insertAdjacentElement("afterend",b);b.insertAdjacentElement("afterend",box)})}
+var _ae=abrirEj;abrirEj=function(did,i){_ae(did,i);try{ilSheet(did,i)}catch(e){console.error("ilus",e)}};
+var _im=imgs;imgs=function(){_im.apply(this,arguments);try{ilDom()}catch(e){console.error("ilus",e)}};
+window.__ilAlias=ilAlias;
+})()}catch(e){console.error("addon v112",e)}
 </script>
 </body>
 </html>
