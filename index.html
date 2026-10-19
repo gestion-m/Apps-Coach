@@ -2797,12 +2797,14 @@ function build(all){RI.by={};RI.nums={};RI.n=0;
  all.forEach(function(f){var s=stemOf(f.p),u=urlOf(f),num=/^(?:mapa-?)?0*(\d{1,3})$/.exec(s);
   if(num){var k=parseInt(num[1],10);if(!RI.nums[k]||/mapa/i.test(f.p))RI.nums[k]=u;return}
   if(!RI.by[s]||/ilus|ilustr|alimento|comida/i.test(f.p))RI.by[s]=u});
- RI.n=Object.keys(RI.nums).length;RI.keys=Object.keys(RI.by)}
+ RI.n=Object.keys(RI.nums).length;RI.keys=Object.keys(RI.by);if(W.__ilExtra)setTimeout(W.__ilExtra,0)}
 async function load(force){var rs=repos(),all=[],ck=null;
  try{ck=JSON.parse(localStorage.getItem("ri118")||"null")}catch(e){}
  if(!force&&ck&&ck.k===rs.join(",")&&Date.now()-ck.t<1800000&&ck.f&&ck.f.length){all=ck.f}
  else{
   for(var i=0;i<rs.length;i++){try{all=all.concat(await treeOf(rs[i]))}catch(e){console.warn("v118 repo",rs[i],e)}}
+  if(!all.length&&ck&&ck.f&&ck.f.length)all=ck.f;
+  if(!all.length){try{var lj=await fetch("ilus/lista.json",{cache:"no-store"});if(lj.ok){var ja=await lj.json();all=ja.map(function(q){return{p:q,r:RI.cur}})}}catch(e){}}
   if(rs.length&&!all.some(function(f){return /^(?:mapa-?)?0*\d{1,3}$/.test(stemOf(f.p))})){
    try{var own=rs[0].split("/")[0],r=await fetch("https://api.github.com/users/"+own+"/repos?per_page=30");
     if(r.ok){var L=await r.json(),n=0;for(var j=0;j<L.length&&n<6;j++){var nm=own+"/"+L[j].name;if(rs.indexOf(nm)>=0)continue;n++;try{all=all.concat(await treeOf(nm))}catch(e){}}}}catch(e){}}
@@ -2825,6 +2827,7 @@ function setSrc(im,urls){var i=0,fb=im.parentNode&&im.parentNode.querySelector?i
  im.style.display="";if(fb)fb.style.display="none";
  im.onerror=function(){i++;if(i<urls.length){im.src=urls[i]}else{im.style.display="none";if(fb)fb.style.display=""}};im.src=urls[0]}
 function ilusFor(name){var a=[];try{var s=W.__ilAlias&&W.__ilAlias(name);if(s)a.push(s)}catch(e){}a.push(name);return RI.find(a)}
+W.__ilusFor=ilusFor;W.__RI=RI;W.__slug=slug;W.__sched=sched;
 function foodCands(name){var n=String(name||"").replace(/\(.*?\)/g," ").replace(/[0-9]+\s*(g|kg|ml)\b/gi," ").trim(),s=slug(n),a=[s],w=s.split("-").filter(function(x){return x.length>=4});
  if(w.length>1){a.push(w[w.length-1]);a.push(w[0])}return a}
 function plateKey(t){t=slug(t);var k=/verdura/.test(t)?"verduras":/protein/.test(t)?"proteina":/carbo|arroz/.test(t)?"carbohidratos":/grasa/.test(t)?"grasas":"";return k}
@@ -2962,7 +2965,7 @@ function scan(){
 
  /* miniaturas de la rutina: reemplazar el muñequito por tu ilustración */
  $$(".exr").forEach(function(row){
-  if(row.dataset.rp==String(V))return;var ph=row.querySelector(".exth.ph");if(!ph)return;row.dataset.rp=V;
+  if(row.dataset.rp==String(V))return;var ph=row.querySelector(".exth");if(!ph||(ph.tagName==="IMG"&&/ilus\/|raw\.githubusercontent/.test(ph.getAttribute("src")||"")))return;row.dataset.rp=V;
   var b=row.querySelector(".exb b"),nm=b&&b.firstChild?b.firstChild.textContent:"",u=nm?ilusFor(nm):null;
   if(u){var im=D.createElement("img");im.className="exth";im.alt="";im.src=u;ph.replaceWith(im)}});
 
@@ -3053,6 +3056,71 @@ function scan(){var cand=[].slice.call(document.querySelectorAll(".card,.item,.m
 var tm=null;new MutationObserver(function(){clearTimeout(tm);tm=setTimeout(function(){try{scan()}catch(e){console.error(e)}},500)}).observe(document.body,{childList:true,subtree:true});
 })()}catch(e){console.error("v120",e)}
 
+</script>
+<script>
+/* ===== v121 ===== */
+try{(function(){
+var st=document.createElement("style");st.textContent=".pdfx{--bg:#fff;--card:#fff;--tx:#111;--mut:#555;--bd:#d5d9e3;--ok:#13894f;--bad:#c62828;--pri:#e8501f}.pdfx .card{background:#fff;border:1px solid #d5d9e3;border-radius:10px;padding:10px 12px;margin:8px 0}.pdfx button,.pdfx input,.pdfx select,.pdfx textarea{display:none!important}.pdfx .row{display:flex;justify-content:space-between;gap:8px}.pdfx .g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.pdfx .ok{color:#13894f}.pdfx .bad{color:#c62828}.pdfx h2{font-size:16px;margin:16px 0 4px}.pdfx .kp{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0}.pdfx .kp div{border:1px solid #d5d9e3;border-radius:10px;padding:8px;text-align:center}.pdfx .kp b{display:block;font-size:20px}#vcbtn{position:fixed;right:12px;bottom:84px;z-index:50;border-radius:22px;padding:10px 14px;box-shadow:0 2px 10px #0008}";document.head.appendChild(st);
+function h2p(){return new Promise(function(ok,no){if(window.html2pdf)return ok();var s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js";s.onload=ok;s.onerror=no;document.head.appendChild(s)})}
+/* PDF: se arma sobre una hoja blanca visible (fuera de pantalla salía en blanco) */
+window.pdfSave=async function(el,name){var ov=document.createElement("div");ov.style.cssText="position:fixed;inset:0;z-index:99999;background:#fff;overflow:auto;color:#111";ov.innerHTML='<div style="padding:10px;font:600 15px system-ui;color:#111">Generando el PDF… no cierres esta pantalla</div>';var box=document.createElement("div");box.style.cssText="width:700px;margin:0 auto;background:#fff";
+ if(typeof el==="string")box.innerHTML=el;else{var c=el.cloneNode(true);c.removeAttribute("id");c.classList.add("pdfx");c.style.cssText="display:block;width:700px;background:#fff;color:#111";box.appendChild(c)}
+ ov.appendChild(box);document.body.appendChild(ov);ov.scrollTop=0;
+ try{await h2p();await Promise.all([].slice.call(box.querySelectorAll("img")).map(function(i){return new Promise(function(ok){if(i.complete&&i.naturalWidth)return ok();i.onload=i.onerror=ok;setTimeout(ok,6000)})}));await new Promise(function(r){setTimeout(r,300)});
+  await html2pdf().set({margin:8,filename:name||"documento.pdf",image:{type:"jpeg",quality:.92},html2canvas:{scale:2,useCORS:true,backgroundColor:"#ffffff",scrollX:0,scrollY:0},jsPDF:{unit:"mm",format:"a4"},pagebreak:{mode:["css","legacy"],avoid:[".ex",".card","tr"]}}).from(box).save();toast("PDF descargado ✓")}
+ catch(e){console.error(e);toast("No pude armar el PDF directo: "+(e&&e.message||e))}
+ finally{ov.remove()}};
+/* Biblioteca (coach): miniatura = dibujo; el video queda al tocar el ejercicio */
+var _lt=libTh;libTh=function(e){var o=_lt(e),sl=(window.__ilAlias&&window.__ilAlias(e.nombre))||norm(e.nombre).replace(/ /g,"-");if(!sl)return o;return '<img class="exth" style="width:44px;height:44px" src="'+esc((window.__ilusFor&&window.__ilusFor(e.nombre))||("ilus/"+sl+".jpg"))+'" alt="" data-fb="'+encodeURIComponent(o)+'" onerror="this.onerror=null;this.outerHTML=decodeURIComponent(this.dataset.fb);try{imgs()}catch(x){}">'};
+/* Cliente: botón visible para bajar la rutina en PDF */
+var _ic=itemsCliH;itemsCliH=function(d){return _ic.apply(this,arguments)};
+var _dh=diaH;diaH=function(){var h=_dh.apply(this,arguments);try{if(typeof h==="string"&&h.indexOf('id="pdfbtn"')<0)h='<button id="pdfbtn" class="w" onclick="go(\'pdf\')">⬇ Descargar mi rutina en PDF</button>'+h}catch(e){}return h};
+/* Coach: ver la rutina tal como la ve el cliente */
+window.VCLI=false;var _ih=itemsH;itemsH=function(d){return(coach()&&window.VCLI)?itemsCliH(d):_ih(d)};
+function vcb(){var b=document.getElementById("vcbtn"),show=false;try{show=coach()&&CUR&&CUR.c&&(V==="det"||V==="cli")}catch(e){}
+ if(!show){if(b)b.remove();return}
+ if(!b){b=document.createElement("button");b.id="vcbtn";b.className="p";b.onclick=function(){window.VCLI=!window.VCLI;draw()};document.body.appendChild(b)}
+ b.textContent=window.VCLI?"↩ Volver a vista coach":"👁 Ver como cliente"}
+/* Fotos de alimentos que no cargan: decir por qué */
+var DG={};document.addEventListener("error",function(e){var im=e.target;if(!im||im.tagName!=="IMG"||!im.dataset||!im.dataset.m||(im.dataset.fb||"")!=="🍽")return;var p=im.dataset.m;if(DG[p]||/^(https?:|blob:|data:)/i.test(p))return;DG[p]=1;
+ sb.storage.from("archivos").createSignedUrl(p,120).then(async function(r){var msg;if(r.error)msg=r.error.message||"no se pudo firmar";else{try{var f=await fetch(r.data.signedUrl,{headers:{Range:"bytes=0-0"}}),t=f.headers.get("content-type")||"?";msg=(f.status==200||f.status==206)?(/heic|heif|octet|tiff/i.test(t)?"formato no compatible ("+t+"): volvé a subirla como JPG o PNG":"existe pero el navegador no la muestra ("+t+")"):"el archivo no existe o no tiene permiso (HTTP "+f.status+")"}catch(x){msg="no pude consultarla: "+x.message}}
+  console.warn("Foto de alimento:",p,msg);try{if(coach())toast("📷 Foto que no carga: "+p.split("/").pop()+" → "+msg)}catch(x){}})},true);
+var tm=null;new MutationObserver(function(){clearTimeout(tm);tm=setTimeout(function(){try{vcb()}catch(e){}},400)}).observe(document.body,{childList:true,subtree:true});
+})()}catch(e){console.error("v121",e)}
+
+</script>
+<script>
+/* ===== v122: dibujos de ejercicios (faltantes + subida múltiple) ===== */
+try{(function(){
+window.DIBV=false;
+function dibMap(){try{return JSON.parse(CFG.imgs_ejercicios||"{}")}catch(e){return{}}}
+window.__ilExtra=async function(){var M=dibMap(),k=Object.keys(M);if(!k.length||!window.__RI)return;try{var r=await sb.storage.from("archivos").createSignedUrls(k.map(function(x){return M[x]}),86400);(r.data||[]).forEach(function(o,i){if(o&&o.signedUrl)__RI.by[k[i]]=o.signedUrl});__RI.keys=Object.keys(__RI.by);__RI.ver++;__sched()}catch(e){console.warn("dibujos",e)}};
+async function guardar(M){var v=JSON.stringify(M),r=await sb.from("config").upsert({clave:"imgs_ejercicios",valor:v});if(r.error){alert(r.error.message);return false}CFG.imgs_ejercicios=v;await __ilExtra();return true}
+function faltan(){return LIB.filter(function(e){return!__ilusFor(e.nombre)})}
+function panel(){var ok=window.__RI&&__RI.loaded&&__RI.keys&&__RI.keys.length;
+ if(!ok)return '<div class="card"><b>🖼 Dibujos de ejercicios</b><p class="mut">Todavía no pude leer tus imágenes de GitHub.</p><button class="w" onclick="riRefresh()">🔄 Volver a buscar</button></div>';
+ var f=faltan(),h='<div class="card"><b>🖼 Dibujos de ejercicios</b><p class="mut">Tienen dibujo '+(LIB.length-f.length)+' de '+LIB.length+(f.length?". Faltan "+f.length+".":". ¡Están todos!")+'</p><label>Subir varios dibujos juntos (el nombre del archivo tiene que ser el del ejercicio)</label><input id="dibf" type="file" accept="image/*" multiple><button class="p w" onclick="subirDib()">Subir dibujos</button><p id="dibp" class="mut"></p>';
+ if(f.length)h+='<button class="w" onclick="DIBV=!DIBV;draw()">'+(DIBV?"Ocultar":"Ver")+" los "+f.length+' que faltan</button><button class="w" onclick="copiarFaltan()">Copiar la lista con el nombre de archivo</button>';
+ if(f.length&&DIBV)h+=f.map(function(e){return '<div class="row" style="margin:6px 0;gap:6px"><span style="flex:1;min-width:0"><b>'+esc(e.nombre)+'</b><div class="mut" style="font-size:12px">archivo: '+__slug(e.nombre)+'.jpg</div></span><input type="file" accept="image/*" hidden onchange="subirDib1(this,\''+e.id+'\')"><button onclick="this.previousElementSibling.click()">🖼 Subir</button></div>'}).join("");
+ return h+"</div>"}
+var _lh=libH;libH=function(){var h=_lh.apply(this,arguments);try{return h.replace("<h2>Mi biblioteca de ejercicios</h2>","<h2>Mi biblioteca de ejercicios</h2>"+panel())}catch(e){return h}};
+window.copiarFaltan=function(){var t=faltan().map(function(e){return e.nombre+" → "+__slug(e.nombre)+".jpg"}).join("\n");try{navigator.clipboard.writeText(t);toast("Lista copiada ("+faltan().length+")")}catch(e){prompt("Copiá la lista:",t)}};
+window.subirDib1=async function(inp,id){var f=inp.files[0],e=LIB.find(function(z){return z.id==id});if(!f||!e)return;toast("Subiendo…");var p=await subir(f,"ilustraciones",true);if(!p){toast("No se pudo subir: "+(window.SUBERR||""));return}var M=dibMap();M[__slug(e.nombre)]=p;if(await guardar(M)){toast("Dibujo guardado ✓");draw()}};
+window.subirDib=async function(){var fs=[].slice.call(document.getElementById("dibf").files||[]);if(!fs.length){toast("Elegí los archivos primero");return}var M=dibMap(),ok=0,no=[],pr=document.getElementById("dibp");
+ for(var i=0;i<fs.length;i++){if(pr)pr.textContent="Subiendo "+(i+1)+" de "+fs.length+"…";var st=__slug(fs[i].name.replace(/\.[^.]+$/,"")).replace(/-(copia|copy)$/,""),e=LIB.find(function(z){return __slug(z.nombre)===st})||LIB.find(function(z){var s=__slug(z.nombre);return st.length>=4&&(s.indexOf(st)===0||st.indexOf(s)===0)});
+  if(!e){no.push(fs[i].name);continue}var p=await subir(fs[i],"ilustraciones",true);if(p){M[__slug(e.nombre)]=p;ok++}else no.push(fs[i].name)}
+ if(ok&&!(await guardar(M)))return;if(pr)pr.textContent="";alert("Subidos: "+ok+" de "+fs.length+(no.length?"\n\nNo encontré el ejercicio para estos archivos (renombralos con el nombre del ejercicio, o subilos desde «Ver los que faltan»):\n"+no.join("\n"):""));draw()};
+setTimeout(function(){try{if(window.__RI&&__RI.loaded)__ilExtra()}catch(e){}},2500);
+})()}catch(e){console.error("v122",e)}
+
+</script>
+<script>
+/* ===== v123: bitácora de la IA, sin ExerciseDB, respaldo de imágenes ===== */
+try{(function(){
+var _it=iaTool;iaTool=async function(n,a){var o=await _it(n,a);try{sb.from("ia_log").insert({herramienta:n,cliente_id:(a&&a.cliente_id)?String(a.cliente_id):null,detalle:String((o&&o.log)||"").slice(0,300)}).then(function(){},function(){})}catch(e){}return o};
+var _l3=libH;libH=function(){var h=_l3.apply(this,arguments);try{h=h.replace(/<div class="card"><b>🎞 GIFs gratis de ExerciseDB<\/b>.*?<\/div>/,"");h=h.replace('<p id="dibp" class="mut"></p>','<p id="dibp" class="mut"></p><button class="w" onclick="bajarLista()">⬇ Descargar lista.json (respaldo de tus imágenes)</button>')}catch(e){}return h};
+window.bajarLista=function(){var ck=null;try{ck=JSON.parse(localStorage.getItem("ri118")||"null")}catch(e){}if(!ck||!ck.f||!ck.f.length){toast("Primero tocá «Volver a buscar» para leer tus imágenes");return}var b=new Blob([JSON.stringify(ck.f.map(function(f){return f.p}))],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="lista.json";document.body.appendChild(a);a.click();a.remove();toast("Listo. Subí ese archivo a la carpeta ilus/ de GitHub")};
+})()}catch(e){console.error("v123",e)}
 </script>
 </body>
 </html>
