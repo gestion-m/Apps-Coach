@@ -3122,5 +3122,122 @@ var _l3=libH;libH=function(){var h=_l3.apply(this,arguments);try{h=h.replace(/<d
 window.bajarLista=function(){var ck=null;try{ck=JSON.parse(localStorage.getItem("ri118")||"null")}catch(e){}if(!ck||!ck.f||!ck.f.length){toast("Primero tocá «Volver a buscar» para leer tus imágenes");return}var b=new Blob([JSON.stringify(ck.f.map(function(f){return f.p}))],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="lista.json";document.body.appendChild(a);a.click();a.remove();toast("Listo. Subí ese archivo a la carpeta ilus/ de GitHub")};
 })()}catch(e){console.error("v123",e)}
 </script>
+<script>
+/* ===== v124: recetas — subir fotos/PDF/texto, 1 receta por imagen, tarjeta original, tiempo/porciones ===== */
+try{
+var ER2={busy:false,msg:"",items:[],txt:""};
+function rc2N(v){return Math.round(parseFloat(v)||0)}
+function rc2Re(){var e=Q("exm");if(e)e.innerHTML=rc2ModalH();else modalEj(rc2ModalH())}
+function rc2Sync(){var t=Q("rc_tx");if(t)ER2.txt=t.value;ER2.items.forEach(function(r,i){var g=function(k){var e=Q("ri_"+k+i);return e?e.value:null};
+ var n=g("n");if(n!==null)r.n=n;var m=g("m");if(m!==null)r.m=m;var t2=g("t");if(t2!==null)r.t=t2;
+ var po=g("po");if(po!==null)r.po=rc2N(po);var k=g("k");if(k!==null)r.k=rc2N(k);var p=g("p");if(p!==null)r.p=rc2N(p);var c=g("c");if(c!==null)r.c=rc2N(c);var gg=g("g");if(gg!==null)r.g=rc2N(gg)})}
+function rc2ModalH(){
+ var h='<div class="row"><h1 style="margin:0;font-size:24px">🍳 Mis recetas</h1><button onclick="cerrarEj()" aria-label="Cerrar">✕</button></div>';
+ if(!ER2.items.length){
+  h+='<div class="card"><b>📥 Subir mis recetas</b><p class="mut">Subí fotos, capturas o PDF (hasta 30 por vez). Cada foto, o cada página de un PDF, se toma como una receta: la IA la lee y guarda la imagen original para que la veas completa. También podés pegar texto. Antes de guardar las revisás.</p>'
+  +(ER2.busy?'':'<input id="rc_f" type="file" multiple accept="image/*,application/pdf,.txt"><label>O pegá el texto de tus recetas</label><textarea id="rc_tx" rows="5">'+esc(ER2.txt)+'</textarea><button class="p w" onclick="rc2Leer()">Leer con IA</button>')
+  +(ER2.msg?'<p class="mut" style="white-space:pre-wrap">'+esc(ER2.msg)+'</p>':'')+'</div>';
+ }else{
+  h+='<div class="card"><p class="mut" style="white-space:pre-wrap;margin:0">'+esc(ER2.msg)+'</p></div>';
+  h+=ER2.items.map(function(r,i){
+   var im=r.prev?'<img src="'+r.prev+'" alt="" style="width:64px;height:84px;object-fit:cover;object-position:top;border-radius:10px;flex:none">':'';
+   return '<div class="card" style="border-color:var(--pri)"><div style="display:flex;gap:10px;align-items:flex-start">'+im+'<div style="flex:1;min-width:0"><label>Nombre</label><input id="ri_n'+i+'" value="'+esc(r.n)+'"></div></div>'
+   +'<div class="g2"><div><label>Momento</label><select id="ri_m'+i+'">'+opts(MOM,r.m)+'</select></div><div><label>Tiempo</label><input id="ri_t'+i+'" value="'+esc(r.t||"")+'" placeholder="20 min"></div></div>'
+   +'<div class="g2"><div><label>Porciones</label><input id="ri_po'+i+'" type="number" inputmode="numeric" value="'+(r.po||"")+'"></div><div><label>Kcal'+(r.e?' ≈':'')+'</label><input id="ri_k'+i+'" type="number" inputmode="numeric" value="'+r.k+'"></div></div>'
+   +'<div class="g2"><div><label>Proteína (g)</label><input id="ri_p'+i+'" type="number" inputmode="decimal" value="'+r.p+'"></div><div><label>Carbos (g)'+(r.e?' ≈':'')+'</label><input id="ri_c'+i+'" type="number" inputmode="decimal" value="'+r.c+'"></div></div>'
+   +'<div class="g2"><div><label>Grasas (g)'+(r.e?' ≈':'')+'</label><input id="ri_g'+i+'" type="number" inputmode="decimal" value="'+r.g+'"></div><div></div></div>'
+   +(r.e?'<p class="mut">≈ Valores estimados por la IA (por porción). Revisalos.</p>':'')
+   +'<details><summary class="mut">Ver ingredientes y preparación</summary><p style="white-space:pre-wrap"><b>Ingredientes</b>\n'+esc(r.i)+'</p><p style="white-space:pre-wrap"><b>Preparación</b>\n'+esc(r.s)+'</p></details>'
+   +'<button class="w" onclick="rc2Sacar('+i+')">Sacar esta</button></div>'}).join("")
+   +'<button class="p w" '+(ER2.busy?"disabled":"")+' onclick="rc2Guardar()">Guardar '+ER2.items.length+(ER2.items.length==1?" receta":" recetas")+'</button><button class="w" '+(ER2.busy?"disabled":"")+' onclick="rc2Desc()">Descartar</button>';
+ }
+ var mine=recJ("recetas_extra");
+ h+='<div class="card"><b>Mis recetas guardadas ('+mine.length+')</b>'+(mine.length?mine.map(function(x){return '<div class="row" style="margin:8px 0"><span><b>'+esc(x.n)+'</b><br><span class="mut">'+esc(x.m)+' · '+(x.e?'≈ ':'')+(x.k||0)+' kcal'+(x.t?' · ⏱ '+esc(x.t):'')+'</span></span><button onclick="rc2Del(\''+esc(x.id)+'\')">🗑</button></div>'}).join(""):'<p class="mut">Todavía no cargaste ninguna.</p>')+'</div>';
+ return h}
+window.recModal=function(){ER2.msg="";ER2.items=[];ER2.busy=false;rc2Re()};
+window.rc2Sacar=function(i){rc2Sync();ER2.items.splice(i,1);if(!ER2.items.length)ER2.msg="";rc2Re()};
+window.rc2Desc=function(){ER2.items=[];ER2.msg="";ER2.txt="";rc2Re()};
+window.rc2Del=async function(id){if(!confirm("¿Borrar esta receta?"))return;rc2Sync();await recSave("recetas_extra",recJ("recetas_extra").filter(function(x){return x.id!==id}));recSync();draw();rc2Re()};
+
+function rc2Pdfjs(){return new Promise(function(ok,no){if(window.pdfjsLib)return ok(window.pdfjsLib);var B="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/",s=document.createElement("script");s.src=B+"pdf.min.js";
+ s.onload=async function(){try{var w=await fetch(B+"pdf.worker.min.js"),b=await w.blob();window.pdfjsLib.GlobalWorkerOptions.workerSrc=URL.createObjectURL(b);ok(window.pdfjsLib)}catch(e){no(e)}};
+ s.onerror=function(){no(new Error("No cargó el lector de PDF"))};document.head.appendChild(s)})}
+async function rc2PdfPages(f,out){var L=await rc2Pdfjs(),d=await L.getDocument({data:await f.arrayBuffer()}).promise,n=Math.min(d.numPages,40);
+ for(var i=1;i<=n;i++){var pg=await d.getPage(i),v0=pg.getViewport({scale:1}),k=1500/Math.max(v0.width,v0.height),v=pg.getViewport({scale:k}),c=document.createElement("canvas");c.width=Math.round(v.width);c.height=Math.round(v.height);
+  await pg.render({canvasContext:c.getContext("2d"),viewport:v}).promise;
+  var b=await new Promise(function(r){c.toBlob(r,"image/jpeg",.85)});out.push(new File([b],(f.name||"pdf").replace(/\.pdf$/i,"")+"_p"+i+".jpg",{type:"image/jpeg"}))}
+ return d.numPages}
+function rc2Parse(tx){tx=tx.replace(/```json|```/g,"");var a=null,mt=tx.match(/\[[\s\S]*\]/);if(mt){try{a=JSON.parse(mt[0])}catch(e){}}
+ if(!a){var s0=tx.indexOf("[");if(s0>=0){var e0=tx.lastIndexOf("}");if(e0>s0){try{a=JSON.parse(tx.slice(s0,e0+1)+"]")}catch(e){}}}}return a}
+function rc2Prompt(extra){return "Sos asistente de un coach de nutrición. Leé las recetas del material (imagen, página de PDF y/o texto). Respondé SOLO con un array JSON válido, sin markdown, sin texto extra y sin usar herramientas. Un objeto por receta con estas claves: momento (exactamente uno de: "+MOM.join(", ")+"), nombre, numero (el N° si dice por ejemplo «5 de 20», si no 0), tiempo (texto tal cual, ej «20 min»), porciones (número), kcal, proteina, carbos, grasas (números POR PORCIÓN: si la receta indica proteína por porción usá ese número exacto; lo que no venga escrito estimalo dividiendo los ingredientes por las porciones), estimado (true si estimaste kcal, carbos o grasas porque no estaban escritos; false si todo venía escrito), ingredientes (texto, uno por línea con cantidades, sin viñetas), preparacion (texto con pasos numerados), nota (aclaración al pie si hay, si no vacío). Incluí todas las recetas que haya (máximo 12)."+(extra?" Texto de las recetas: «"+extra.slice(0,12000)+"»":"")}
+async function rc2Ask(content){var r=await Promise.race([sb.functions.invoke("asistente",{body:{messages:[{role:"user",content:content}],cliente:null}}),new Promise(function(_,no){setTimeout(function(){no(new Error("Tardó demasiado"))},90000)})]);
+ if(r.error){var m=r.error.message;try{var j=await r.error.context.json();m=j.error||m}catch(e){}throw new Error(m)}
+ var tx=((r.data||{}).content||[]).filter(function(x){return x.type=="text"}).map(function(x){return x.text}).join("\n"),a=rc2Parse(tx);
+ if(!a||!a.length)throw new Error("No encontré recetas");return a}
+function rc2Map(o,file){return{m:MOM.indexOf(o.momento)>=0?o.momento:"Almuerzo",n:String(o.nombre||"Receta").trim(),k:rc2N(o.kcal),p:rc2N(o.proteina),c:rc2N(o.carbos),g:rc2N(o.grasas),
+ i:String(o.ingredientes||"").trim(),s:String(o.preparacion||"").trim(),t:String(o.tiempo||"").trim(),po:rc2N(o.porciones),e:o.estimado===false?0:1,nt:String(o.nota||"").trim(),no:rc2N(o.numero),
+ file:file||null,prev:file?URL.createObjectURL(file):""}}
+window.rc2Leer=async function(){if(ER2.busy)return;var inp=Q("rc_f"),fs=inp?[].slice.call(inp.files):[],t=((Q("rc_tx")||{}).value||"").trim();
+ if(!fs.length&&!t){alert("Subí un archivo o pegá el texto de tus recetas.");return}
+ if(fs.length>30){alert("Subí hasta 30 archivos por vez.");return}
+ ER2.txt=t;ER2.busy=true;ER2.items=[];ER2.msg="Preparando archivos…";rc2Re();
+ var imgsF=[],txt=t,pdfsRaw=[],fails=[],notas=[];
+ try{
+  for(var i=0;i<fs.length;i++){var f=fs[i];
+   if(/^image\//.test(f.type))imgsF.push(f);
+   else if(f.type=="application/pdf"||/\.pdf$/i.test(f.name)){
+    if(f.size>25*1048576){fails.push(f.name+" (pesa más de 25 MB)");continue}
+    try{ER2.msg="Abriendo PDF «"+f.name+"»…";rc2Re();var tot=await rc2PdfPages(f,imgsF);if(tot>40)notas.push("El PDF tiene "+tot+" páginas: leí las primeras 40. Subí el resto en otra tanda.")}
+    catch(e){pdfsRaw.push(f)}}
+   else if(/\.txt$/i.test(f.name)||f.type=="text/plain")txt+="\n\n"+await f.text()}
+  if(imgsF.length>40){imgsF=imgsF.slice(0,40);notas.push("Leí las primeras 40 páginas/fotos.")}
+  var tot2=imgsF.length+(txt.trim()?1:0)+pdfsRaw.length,hecho=0;
+  for(var j=0;j<imgsF.length;j++){
+   hecho++;ER2.msg="Leyendo "+hecho+" de "+tot2+"… ("+ER2.items.length+" recetas)";rc2Re();
+   var b=await ejImg(imgsF[j],1280);if(!b){fails.push("Imagen "+(j+1));continue}
+   var res=null;
+   for(var tr=0;tr<2&&!res;tr++){try{res=await rc2Ask([{type:"image",source:{type:"base64",media_type:"image/jpeg",data:b}},{type:"text",text:rc2Prompt("")}])}catch(e){if(tr==1)fails.push((imgsF[j].name||"Imagen "+(j+1))+" ("+(e.message||e)+")")}}
+   if(res){var keep=res.length==1;res.slice(0,12).forEach(function(o){ER2.items.push(rc2Map(o,keep?imgsF[j]:null))})}}
+  for(var q=0;q<pdfsRaw.length;q++){hecho++;ER2.msg="Leyendo PDF «"+pdfsRaw[q].name+"»… (sin fotos, solo texto)";rc2Re();
+   try{var d64=await new Promise(function(ok,no){var r=new FileReader();r.onload=function(){ok(String(r.result).split(",")[1])};r.onerror=function(){no(new Error("No pude leer el archivo"))};r.readAsDataURL(pdfsRaw[q])});
+    var rs=await rc2Ask([{type:"document",source:{type:"base64",media_type:"application/pdf",data:d64}},{type:"text",text:rc2Prompt("")}]);rs.slice(0,12).forEach(function(o){ER2.items.push(rc2Map(o,null))})}
+   catch(e){fails.push(pdfsRaw[q].name+" ("+(e.message||e)+")")}}
+  if(txt.trim()){hecho++;ER2.msg="Leyendo el texto… ("+ER2.items.length+" recetas)";rc2Re();
+   try{var rt=await rc2Ask([{type:"text",text:rc2Prompt(txt.trim())}]);rt.slice(0,12).forEach(function(o){ER2.items.push(rc2Map(o,null))})}catch(e){fails.push("Texto pegado ("+(e.message||e)+")")}}
+  ER2.items.sort(function(a,b){return(a.no||999)-(b.no||999)});
+  ER2.msg=(ER2.items.length?"Encontré "+ER2.items.length+(ER2.items.length==1?" receta":" recetas")+". Revisalas y guardalas.":"No pude leer ninguna receta.")+(notas.length?"\n"+notas.join("\n"):"")+(fails.length?"\nNo se pudieron leer: "+fails.join(", "):"")
+ }catch(e){ER2.msg="No se pudo leer: "+(e.message||e)}
+ ER2.busy=false;rc2Re()};
+window.rc2Guardar=async function(){if(ER2.busy)return;rc2Sync();ER2.busy=true;var a=recJ("recetas_extra"),t0=Date.now(),sinFoto=0,N=ER2.items.length;
+ try{for(var i=0;i<N;i++){var it=ER2.items[i],ph="";ER2.msg="Guardando "+(i+1)+" de "+N+"…";rc2Re();
+   if(it.file){ph=await subir(it.file,"biblioteca",true)||"";if(!ph)sinFoto++}
+   a.push({id:"r"+(t0+i),m:it.m,n:String(it.n).trim()||"Receta",k:it.k,p:it.p,c:it.c,g:it.g,i:it.i,s:it.s,f:ph,t:it.t||"",po:it.po||0,e:it.e?1:0,nt:it.nt||"",no:it.no||0,d:hoy()})}
+  if(await recSave("recetas_extra",a)){ER2.items=[];ER2.txt="";ER2.msg="Guardé "+N+(N==1?" receta ✓":" recetas ✓")+(sinFoto?"\n"+sinFoto+" quedaron sin foto (falló la subida).":"");recSync();ER2.busy=false;draw();rc2Re();return}
+ }catch(e){ER2.msg="No se pudo guardar: "+(e.message||e)}
+ ER2.busy=false;rc2Re()};
+
+/* ver receta: tarjeta original, tiempo, porciones, nota, aviso de estimado */
+window.rc2Zoom=function(path){var o=document.createElement("div");o.id="rcz";o.style.cssText="position:fixed;left:0;top:0;right:0;bottom:0;z-index:99999;background:#000;overflow:auto;touch-action:pan-x pan-y pinch-zoom";
+ o.innerHTML='<button onclick="document.getElementById(\'rcz\').remove()" aria-label="Cerrar" style="position:fixed;top:12px;right:12px;z-index:2;min-height:44px;min-width:44px">✕</button><img data-m="'+esc(path)+'" alt="" style="width:100%;display:block">';document.body.appendChild(o);try{imgs()}catch(e){}};
+window.abrirRec=function(i){var r=RC[i];if(!r)return;var x=null;if(r.id){var l=recJ("recetas_extra");for(var z=0;z<l.length;z++)if(l[z].id===r.id)x=l[z]}x=x||{};
+ var chips=(x.t?'<span class="tag">⏱ '+esc(x.t)+'</span> ':'')+(x.po?'<span class="tag">🍽 '+x.po+(x.po==1?' porción':' porciones')+'</span>':'');
+ modalEj('<div class="row"><h1 style="margin:0;font-size:26px">'+esc(r[1])+'</h1><button onclick="cerrarEj()" aria-label="Cerrar">✕</button></div><p class="mut">'+r[0]+' · por porción</p>'+(chips?'<p>'+chips+'</p>':'')
+ +(r.foto?'<img data-m="'+esc(r.foto)+'" alt="" onclick="rc2Zoom(\''+esc(r.foto)+'\')" style="width:100%;max-height:300px;object-fit:cover;object-position:top;border-radius:14px;margin:6px 0"><button class="w" onclick="rc2Zoom(\''+esc(r.foto)+'\')">🔍 Ver tarjeta completa</button>':"")
+ +'<div class="card"><div class="row" style="gap:16px;justify-content:flex-start">'+ringH(r[2],r[3],r[4],r[5],120)+'</div><div style="margin-top:14px">'+macBarsH(r[3],r[4],r[5],null)+'</div>'+(x.e?'<p class="mut">≈ Calorías, carbos y grasas estimados por la IA. Aproximados.</p>':'')+'</div>'
+ +'<div class="card"><b>Ingredientes</b><p style="white-space:pre-wrap">'+esc(r[6])+'</p></div><div class="card"><b>Preparación</b><p style="white-space:pre-wrap">'+esc(r[7])+'</p></div>'+(x.nt?'<p class="mut">'+esc(x.nt)+'</p>':'')
+ +(coach()?'<button class="w" onclick="recDel1('+i+')">🗑 '+(r.id?"Borrar":"Sacar")+' esta receta</button>':""));try{imgs()}catch(e){}};
+
+/* lista: miniatura recortada arriba (se ve el plato), tiempo/porciones y ≈ */
+var _rt2=recTabH;recTabH=function(){var h=_rt2.apply(this,arguments);try{
+ h=h.split("object-fit:cover;flex:none").join("object-fit:cover;object-position:top;flex:none");
+ var ex={};recJ("recetas_extra").forEach(function(x){ex[x.id]=x});
+ h=h.replace(/onclick="abrirRec\((\d+)\)">([\s\S]*?)<div class="mut">([^<]*)<\/div>/g,function(m,i,mid,kc){var r=RC[+i],x=r&&r.id?ex[r.id]:null;if(!x)return m;
+  return 'onclick="abrirRec('+i+')">'+mid+'<div class="mut">'+(x.e?"≈ ":"")+kc+'</div>'+((x.t||x.po)?'<div class="mut">'+(x.t?"⏱ "+esc(x.t):"")+(x.t&&x.po?" · ":"")+(x.po?x.po+" porc.":"")+'</div>':"")});
+ h=h.replace('<label>Ingredientes</label><textarea id="rx_i"','<div class="g2"><div><label>Tiempo</label><input id="rx_t" placeholder="20 min"></div><div><label>Porciones</label><input id="rx_po" type="number" inputmode="numeric"></div></div><label>Ingredientes</label><textarea id="rx_i"');
+}catch(e){console.error("recTab124",e)}return h};
+var _ra=window.recAdd;window.recAdd=async function(){var t=(Q("rx_t")||{}).value||"",po=+((Q("rx_po")||{}).value)||0,before=recJ("recetas_extra").length;await _ra.apply(this,arguments);
+ try{var a=recJ("recetas_extra");if(a.length>before&&(t||po)){a[a.length-1].t=t.trim();a[a.length-1].po=po;await recSave("recetas_extra",a);recSync();draw()}}catch(e){}};
+}catch(e){console.error("v124",e)}
+</script>
 </body>
 </html>
